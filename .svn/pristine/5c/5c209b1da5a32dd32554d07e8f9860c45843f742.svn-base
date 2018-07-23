@@ -1,0 +1,286 @@
+(function() {
+  'use strict';
+  angular.module('r1kApp').directive('matchTo', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        ngModel.$validators.match = function(modelValue) {
+          return angular.isUndefined(modelValue) || modelValue === scope.$eval(attrs.matchTo);
+        };
+        return scope.$watch(attrs.matchTo, function(n) {
+          if (n) {
+            return ngModel.$validate();
+          }
+        });
+      }
+    };
+  }).directive('form', function() {
+    return {
+      restrict: 'E',
+      link: function(scope, element, attrs) {
+        return scope.$watch('configForm.$submitted', function(n) {
+          if (n && Object.keys(scope.configForm.$error).length > 0) {
+            scope.configForm.$setPristine();
+            scope.buildToast((scope.configForm.$error.required ? 'Error! All required values must be provided.' : 'Error! Please correct invalid values.'), 1);
+            return angular.forEach(scope.configForm.$error, function(e, key) {
+              return angular.forEach(e, function(f) {
+                return angular.forEach(f.$error, function(x) {
+                  return x[0].$setTouched();
+                });
+              });
+            });
+          }
+        });
+      }
+    };
+  }).directive('inputDisabled', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        return scope.$watch(attrs.inputDisabled, function(n, o) {
+          if (n) {
+            return element.attr('disabled', 'true');
+          } else {
+            return element.removeAttr('disabled');
+          }
+        });
+      }
+    };
+  }).directive('checkStep', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        return ngModel.$validators.check = function(modelValue) {
+          if (attrs.checkStep > 0) {
+            return modelValue % attrs.checkStep === 0;
+          } else {
+            return true;
+          }
+        };
+      }
+    };
+  }).directive('hasValue', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        return ngModel.$formatters.push(function(v) {
+          var val;
+          val = v.length > 0;
+          element.css('display', val ? 'block' : 'none');
+          return val;
+        });
+      }
+    };
+  }).directive('formatArray', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        ngModel.$parsers.push(function(v) {
+          var char, ind, val;
+          char = attrs['formatArray'] || ' ';
+          val = ngModel.$modelValue.split(char);
+          ind = ~~attrs.index;
+          val[ind] = v;
+          return val.join(char);
+        });
+        return ngModel.$formatters.push(function(v) {
+          var char, ind, val;
+          char = attrs['formatArray'] || ' ';
+          val = v.split(char);
+          ind = ~~attrs.index;
+          if (attrs.output === 'num') {
+            return ~~val[attrs.index];
+          } else {
+            return val[attrs.index];
+          }
+        });
+      }
+    };
+  }).directive('hashPass', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        ngModel.$validators.pattern = function(m, v) {
+          var test;
+          if (attrs.hashPass && attrs.pattern && v) {
+            test = attrs.ngPattern.test(v);
+            if (!test) {
+              scope.configForm.$setPristine();
+            }
+            return test;
+          } else {
+            return true;
+          }
+        };
+        ngModel.$formatters.push(function(v) {
+          if (attrs.hashPass) {
+            return '';
+          } else {
+            return v;
+          }
+        });
+        return ngModel.$parsers.push(function(v) {
+          if (!v) {
+            ngModel.$setPristine();
+          }
+          if (attrs.hashPass && v) {
+            return scope.hash(v);
+          } else {
+            return v || '';
+          }
+        });
+      },
+      controller: function($scope, Auth) {
+        return $scope.hash = function(v) {
+          return Auth.hashPass(v);
+        };
+      }
+    };
+  }).directive('add', function() {
+    return {
+      restrict: 'A',
+      controller: function($scope) {
+        $scope.prop = [];
+        $scope.total = 0;
+        return $scope.addProp = function(propName, val) {
+          if ($scope.prop[propName] === void 0) {
+            $scope.prop[propName] = [];
+          }
+          $scope.prop[propName].unshift(val);
+          $scope.total = 0;
+          return angular.forEach($scope.prop[propName], function(value, key) {
+            return $scope.total += ~~value;
+          });
+        };
+      }
+    };
+  }).directive('addTotal', function() {
+    return {
+      restrict: 'A',
+      require: ['ngModel', '^add'],
+      link: function(scope, element, attrs, req) {
+        var ngModel;
+        ngModel = req[0];
+        scope.addProp(attrs.name, attrs.addTotal);
+        ngModel.$formatters.push(function(v) {
+          var bt;
+          bt = v & ~~attrs.addTotal;
+          if (bt !== 0) {
+            return 1;
+          } else {
+            return 0;
+          }
+        });
+        return ngModel.$parsers.push(function(v) {
+          var val, x;
+          val = ~~ngModel.$modelValue;
+          x = 0;
+          if (val > scope.total) {
+            angular.forEach(scope.prop[attrs.name], function(t, k) {
+              var a;
+              a = val & ~~t;
+              return x = x + a;
+            });
+            val = x;
+          }
+          if (v === 1) {
+            return val + ~~attrs.addTotal;
+          } else {
+            return val - ~~attrs.addTotal;
+          }
+        });
+      }
+    };
+  }).directive('showMenu', function() {
+    return {
+      restrict: 'A',
+      controller: function($state, $scope, $rootScope) {
+        $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
+          $scope.inactive = '';
+          if ($state.includes('dialog')) {
+            return $scope.inactive = $state.href(fromState.name, fromParams);
+          } else if (toState.name !== fromState.name) {
+            return $scope.showSubMenu = toState.name;
+          }
+        });
+        $scope.inactive = '';
+        $scope.showSubMenu = $state.current.name;
+        return $scope.selectMenu = function(m) {
+          $scope.showSubMenu = m || $state.current.name;
+          return $scope.$applyAsync();
+        };
+      }
+    };
+  }).directive('showSubMenu', function() {
+    return {
+      restrict: 'A',
+      require: '^^showMenu',
+      link: function(scope, element, attrs) {
+        element.on('mouseenter', function() {
+          return scope.selectMenu(attrs.uiSref);
+        });
+        element.on('mouseleave', function() {
+          if (!element.hasClass('activeView')) {
+            return scope.selectMenu('');
+          }
+        });
+        return scope.$watchGroup(['showSubMenu', 'inactive'], function(n) {
+          if (attrs.uiSref === n[0] && !element.hasClass('activeView')) {
+            return element.addClass('showMenu');
+          } else {
+            return element.removeClass('showMenu');
+          }
+        });
+      }
+    };
+  }).directive('subMenu', function($state) {
+    return {
+      restrict: 'A',
+      require: '^^showMenu',
+      link: function(scope, element, attrs) {
+        var hideMenu;
+        hideMenu = function(n) {
+          if (attrs.subMenu !== n) {
+            return element.addClass('ng-hide');
+          } else {
+            return element.removeClass('ng-hide');
+          }
+        };
+        scope.$watch('showSubMenu', function(n, o) {
+          return hideMenu(n);
+        });
+        element.on('mouseenter', function() {
+          return scope.selectMenu(attrs.subMenu);
+        });
+        return element.on('mouseleave', function() {
+          if (attrs.subMenu !== $state.current.name) {
+            return scope.selectMenu('');
+          }
+        });
+      }
+    };
+  }).directive('subMenuParam', function() {
+    return {
+      restrict: 'A',
+      require: '^^showMenu',
+      link: function(scope, element, attrs) {
+        return scope.$watch('inactive', function(n) {
+          if (attrs.href === n && !element.hasClass('activeView')) {
+            return element.addClass('showMenu');
+          } else {
+            return element.removeClass('showMenu');
+          }
+        });
+      }
+    };
+  });
+
+}).call(this);
+
+//# sourceMappingURL=matchInput.js.map

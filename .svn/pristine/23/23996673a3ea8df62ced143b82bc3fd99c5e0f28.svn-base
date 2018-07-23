@@ -1,0 +1,150 @@
+{
+  "_args": [
+    [
+      {
+        "raw": "generator-ng-component@~0.1.1",
+        "scope": null,
+        "escapedName": "generator-ng-component",
+        "name": "generator-ng-component",
+        "rawSpec": "~0.1.1",
+        "spec": ">=0.1.1 <0.2.0",
+        "type": "range"
+      },
+      "/home/gailane/Documents/Web/Ruby1000/node_modules/generator-angular-fullstack"
+    ]
+  ],
+  "_from": "generator-ng-component@>=0.1.1 <0.2.0",
+  "_id": "generator-ng-component@0.1.1",
+  "_inCache": true,
+  "_location": "/generator-ng-component",
+  "_nodeVersion": "0.12.7",
+  "_npmUser": {
+    "name": "awk34",
+    "email": "koroluka@gmail.com"
+  },
+  "_npmVersion": "2.11.3",
+  "_phantomChildren": {
+    "ansi-regex": "2.1.1",
+    "async": "0.9.2",
+    "class-extend": "0.1.2",
+    "cli-table": "0.3.1",
+    "cross-spawn": "0.2.9",
+    "dargs": "4.1.0",
+    "dateformat": "1.0.12",
+    "debug": "2.6.0",
+    "detect-conflict": "1.0.1",
+    "diff": "1.4.0",
+    "download": "4.4.3",
+    "escape-string-regexp": "1.0.5",
+    "findup-sync": "0.2.1",
+    "github-username": "1.1.1",
+    "gruntfile-editor": "1.2.1",
+    "has-ansi": "2.0.0",
+    "has-color": "0.1.7",
+    "html-wiring": "1.2.0",
+    "inflight": "1.0.6",
+    "inherits": "2.0.3",
+    "inquirer": "0.8.5",
+    "istextorbinary": "1.0.2",
+    "lodash": "3.10.1",
+    "mem-fs-editor": "1.2.3",
+    "mime": "1.3.4",
+    "minimatch": "2.0.10",
+    "mkdirp": "0.5.1",
+    "nopt": "3.0.6",
+    "once": "1.4.0",
+    "path-is-absolute": "1.0.1",
+    "pretty-bytes": "1.0.4",
+    "read-chunk": "1.0.1",
+    "rimraf": "2.5.4",
+    "run-async": "0.1.0",
+    "shelljs": "0.4.0",
+    "sinon": "1.17.7",
+    "supports-color": "2.0.0",
+    "text-table": "0.2.0",
+    "through2": "0.6.5",
+    "underscore.string": "3.3.4",
+    "user-home": "1.1.1",
+    "xdg-basedir": "1.0.1",
+    "yeoman-assert": "1.0.0",
+    "yeoman-environment": "1.6.6",
+    "yeoman-welcome": "1.0.1"
+  },
+  "_requested": {
+    "raw": "generator-ng-component@~0.1.1",
+    "scope": null,
+    "escapedName": "generator-ng-component",
+    "name": "generator-ng-component",
+    "rawSpec": "~0.1.1",
+    "spec": ">=0.1.1 <0.2.0",
+    "type": "range"
+  },
+  "_requiredBy": [
+    "/generator-angular-fullstack"
+  ],
+  "_resolved": "https://registry.npmjs.org/generator-ng-component/-/generator-ng-component-0.1.1.tgz",
+  "_shasum": "9852d94e7e3eab8194f7558cd0f8cfbd0ef5486b",
+  "_shrinkwrap": null,
+  "_spec": "generator-ng-component@~0.1.1",
+  "_where": "/home/gailane/Documents/Web/Ruby1000/node_modules/generator-angular-fullstack",
+  "author": {
+    "name": "Tyler Henkel",
+    "url": "https://github.com/DaftMonk"
+  },
+  "bugs": {
+    "url": "https://github.com/daftmonk/generator-ng-component/issues"
+  },
+  "dependencies": {
+    "chalk": "~0.4.0",
+    "lodash": "^3.10.1",
+    "underscore.string": "^3.2.2",
+    "yeoman-generator": "~0.19.2"
+  },
+  "description": "Yeoman generator",
+  "devDependencies": {
+    "chai": "^1.9.1",
+    "grunt": "^0.4.4",
+    "grunt-contrib-jshint": "^0.10.0",
+    "grunt-contrib-watch": "^0.6.1",
+    "grunt-mocha-test": "^0.10.2",
+    "grunt-release": "^0.7.0",
+    "mocha": "*",
+    "yeoman-assert": "^2.0.0"
+  },
+  "directories": {},
+  "dist": {
+    "shasum": "9852d94e7e3eab8194f7558cd0f8cfbd0ef5486b",
+    "tarball": "https://registry.npmjs.org/generator-ng-component/-/generator-ng-component-0.1.1.tgz"
+  },
+  "engines": {
+    "node": ">=0.10.0"
+  },
+  "gitHead": "d70eba6d59c5433aa84db5010b98efc1f1e9ce67",
+  "homepage": "https://github.com/daftmonk/generator-ng-component#readme",
+  "keywords": [
+    "yeoman-generator"
+  ],
+  "license": "MIT",
+  "main": "app/index.js",
+  "maintainers": [
+    {
+      "name": "daftmonk",
+      "email": "tylerhenkel@hotmail.com"
+    },
+    {
+      "name": "awk34",
+      "email": "koroluka@gmail.com"
+    }
+  ],
+  "name": "generator-ng-component",
+  "optionalDependencies": {},
+  "readme": "ERROR: No README data found!",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daftmonk/generator-ng-component.git"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "version": "0.1.1"
+}

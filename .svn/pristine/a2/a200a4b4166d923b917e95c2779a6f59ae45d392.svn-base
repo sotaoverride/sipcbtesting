@@ -1,0 +1,31 @@
+{
+  "name": "forge",
+  "version": "0.6.39",
+  "description": "JavaScript implementations of network transports, cryptography, ciphers, PKI, message digests, and various utilities.",
+  "moduleType": [
+    "amd"
+  ],
+  "authors": [
+    "Digital Bazaar, Inc."
+  ],
+  "license": "BSD",
+  "main": [
+    "js/forge.js"
+  ],
+  "dependencies": {},
+  "ignore": [
+    "node_modules",
+    "bower_components"
+  ],
+  "homepage": "https://github.com/digitalbazaar/forge",
+  "_release": "0.6.39",
+  "_resolution": {
+    "type": "version",
+    "tag": "0.6.39",
+    "commit": "4dd7e02669a5706e9c71dce67f2127299b24efe0"
+  },
+  "_source": "https://github.com/digitalbazaar/forge.git",
+  "_target": "^0.6.39",
+  "_originalSource": "forge",
+  "_direct": true
+}

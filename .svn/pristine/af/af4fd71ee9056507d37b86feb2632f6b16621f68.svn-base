@@ -1,0 +1,29 @@
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(function($stateProvider) {
+    return $stateProvider.state('dialog', {
+      url: '/dialog',
+      abstract: true,
+      template: '<ui-view/>',
+      onEnter: [
+        '$mdDialog', '$previousState', function($mdDialog, $previousState) {
+          return $mdDialog.show({
+            template: '<md-dialog aria-label="Dialog" class="toolDialog"><md-content><ui-view/></md-content></md-dialog>',
+            controller: [
+              '$scope', '$mdDialog', function($scope, $mdDialog) {
+                return $scope.closeDialog = function() {
+                  return $mdDialog.hide();
+                };
+              }
+            ]
+          })["finally"](function() {
+            return $previousState.go();
+          });
+        }
+      ]
+    });
+  });
+
+}).call(this);
+
+//# sourceMappingURL=dialog.js.map

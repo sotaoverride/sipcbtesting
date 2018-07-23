@@ -1,0 +1,30 @@
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(function($stateProvider) {
+    return $stateProvider.state('main.diag', {
+      url: 'diag',
+      templateUrl: 'app/diag/diag.html',
+      controller: 'DiagCtrl'
+    });
+  });
+
+  'use strict';
+
+  angular.module('r1kApp').controller('DiagCtrl', function($scope, Device) {
+    $scope.forms = diag.forms;
+    $scope.diag = [];
+    return $scope.submitForm = function(cmd) {
+      var data;
+      data = {};
+      data[cmd] = $scope.diag[cmd] || "";
+      return Device.request('requestStatus', data).then(function(x) {
+        return $scope.buildToast('Command has been sent.');
+      }, function() {
+        return $scope.buildToast('Uh oh! Couldn\'t send command. Is the device available?');
+      });
+    };
+  });
+
+}).call(this);
+
+//# sourceMappingURL=diag.js.map

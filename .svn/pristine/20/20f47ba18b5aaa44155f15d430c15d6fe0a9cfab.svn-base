@@ -1,0 +1,14 @@
+gyp WARN EACCES user "root" does not have permission to access the dev dir "/root/.node-gyp/0.10.36"
+gyp WARN EACCES attempting to reinstall using temporary dev dir "/home/gailane/Documents/r1k/node_modules/connect-mongo/node_modules/mongodb/node_modules/kerberos/.node-gyp"
+gyp WARN install got an error, rolling back install
+gyp WARN install got an error, rolling back install
+gyp ERR! configure error 
+gyp ERR! stack Error: getaddrinfo EIO
+gyp ERR! stack     at errnoException (dns.js:37:11)
+gyp ERR! stack     at Object.onanswer [as oncomplete] (dns.js:124:16)
+gyp ERR! System Linux 3.13.0-45-generic
+gyp ERR! command "node" "/usr/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "rebuild"
+gyp ERR! cwd /home/gailane/Documents/r1k/node_modules/connect-mongo/node_modules/mongodb/node_modules/kerberos
+gyp ERR! node -v v0.10.36
+gyp ERR! node-gyp -v v1.0.2
+gyp ERR! not ok 

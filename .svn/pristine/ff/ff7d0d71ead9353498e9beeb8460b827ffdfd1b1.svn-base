@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "file": "dialog.js",
+  "sourceRoot": "",
+  "sources": [
+    "dialog.tool.coffee"
+  ],
+  "names": [],
+  "mappings": "AAAA;AAAA,EAAA,YAAA,CAAA;AAAA,EAEA,OAAO,CAAC,MAAR,CAAe,QAAf,CACA,CAAC,MADD,CACQ,SAAC,cAAD,GAAA;WACN,cAAc,CAAC,KAAf,CAAqB,aAArB,EACE;AAAA,MAAA,GAAA,EAAK,UAAL;AAAA,MACA,WAAA,EAAa,sBADb;AAAA,MAEA,UAAA,EAAY,WAFZ;KADF,EADM;EAAA,CADR,CAFA,CAAA;AAAA"
+}

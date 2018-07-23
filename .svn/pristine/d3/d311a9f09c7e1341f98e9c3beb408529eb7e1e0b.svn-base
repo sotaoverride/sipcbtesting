@@ -1,0 +1,99 @@
+(function() {
+  'use strict';
+  angular.module('r1kApp').factory('Auth', function($window, $state, $idle, $rootScope, $keepalive, Device) {
+    var Auth, clearSession, storeSession, validateSession;
+    Auth = {};
+    Auth.sessionID = {};
+    clearSession = function() {
+      $window.localStorage.clear();
+      Auth.sessionID = {};
+      Device.sessionId('');
+      $idle.unwatch();
+      $keepalive.stop();
+      return $state.go('login');
+    };
+    storeSession = function(exp, id, ka) {
+      Auth.sessionID = {
+        id: id || Auth.sessionID.id,
+        keepAlive: ka !== void 0 ? ka : Auth.sessionID.keepAlive,
+        exp: exp ? Date.now() + (~~exp * 1000) : Auth.sessionID.exp
+      };
+      $window.localStorage.clear();
+      $window.localStorage['revoUC1k_session'] = JSON.stringify(Auth.sessionID);
+      Device.sessionId(Auth.sessionID.id);
+      return $rootScope.sessionExp = 0;
+    };
+    validateSession = function() {
+      var isUser, local, now;
+      isUser = 0;
+      local = $window.localStorage['revoUC1k_session'];
+      if (Auth.sessionID.id || local) {
+        Auth.sessionID = !Auth.sessionID.id ? JSON.parse(local) : Auth.sessionID;
+        now = Date.now();
+        if (!Auth.sessionID.exp || ((Auth.sessionID.exp - now) / 1000 / -60) > 15) {
+          $rootScope.timedOut = true;
+        } else {
+          isUser = 1;
+          storeSession();
+        }
+      }
+      return isUser;
+    };
+    $rootScope.$watch('sessionExp', function(x) {
+      if (x) {
+        return storeSession(x);
+      }
+    });
+    $rootScope.$watch('timedOut', function(x) {
+      if (x) {
+        return Auth.logout();
+      }
+    });
+    Auth.hashPass = function(pass) {
+      var md;
+      if (pass) {
+        md = forge.md.md5.create();
+        md.update(pass);
+        return md.digest().toHex();
+      }
+    };
+    Auth.login = function(exp, id, ka) {
+      return storeSession(exp, id, ~~ka);
+    };
+    Auth.user = function() {
+      return Auth.sessionID.keepAlive || validateSession();
+    };
+    Auth.watch = function() {
+      if (Auth.sessionID.keepAlive) {
+        return $keepalive.start();
+      } else {
+        return $idle.watch();
+      }
+    };
+    Auth.updateSession = function() {
+      return Device.request('requestProperties', {
+        keepAlive: ''
+      }).then(function(success) {
+        if (success["sessionId"] === Auth.sessionID.id) {
+          return storeSession(900);
+        }
+      });
+    };
+    Auth.logout = function() {
+      if ($state.current.name !== 'login') {
+        Device.request('requestProperties', {
+          logout: ''
+        }).then(function(success) {
+          if (success["sessionId"] === Auth.sessionID.id) {
+            return Auth.logout();
+          }
+        });
+      }
+      return clearSession();
+    };
+    return Auth;
+  });
+
+}).call(this);
+
+//# sourceMappingURL=auth.js.map

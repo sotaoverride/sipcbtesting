@@ -1,0 +1,236 @@
+<form class="childState formGroup columns small-12" novalidate name="configForm" autocomplete="off">
+	<ul class="childState-toolBar columns small-centered small-12">
+		<li><md-button class="md-raised md-primary" aria-label="Submit" ng-if="showSubmitButton" ng-disabled="configForm.$pristine" ng-click="submitProps()">Submit</md-button></li>
+	</ul>
+	<h4 ng-repeat-start="fields in vfields" ng-if="fields != 0">{{fields}} Settings</h4>
+	<div class="formItem row" ng-repeat="input in formData | filter:{section: currentSection, field: fields}" ng-switch on="input.type" ng-repeat-end ng-if="(input.show === undefined && input.subOpt.id === undefined) || (input.subOpt.id === undefined && currentSettings[input.show]) || (((input.show === undefined && input.subOpt.parent === undefined) || currentSettings[input.subOpt.parent]) && (currentSettings[input.subOpt.id] === input.subOpt.val))">
+		<ng-form ng-switch-when="checkbox" class="checkbox columns small-12">
+			<!--<md-checkbox ng-if="input.name === 'ble.ble-advertise'" ng-model="cs.name" >
+				<label for="{{input.name}}">
+					{{input.label}}
+					<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+				</label>
+			</md-checkbox>-->
+			<md-checkbox ng-model="currentSettings[input.name]" ng-checked="{{currentSettings[input.name]}}" name="{{input.name}}"  ng-true-value="1" ng-false-value="0">
+				<label for="{{input.name}}">
+					{{input.label}}
+					<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+				</label>
+			</md-checkbox>
+		</ng-form>
+		<ng-form ng-switch-when="addCheckbox" class="checkbox columns small-12" add>
+			<md-checkbox ng-repeat="(val, label) in input.values" ng-model="currentSettings[input.name]" name="{{input.name}}" add-total="{{val}}" ng-true-value="1" ng-false-value="0">
+				<label for="{{label}}">
+					{{label}}
+					<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+				</label>
+			</md-checkbox>
+		</ng-form>
+		<ng-form ng-switch-when="range" class="range columns small-10 medium-10 large-8 xlarge-6" name="$index">
+			<label for="{{input.name}}" class="row">
+				{{input.label}}
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</label>
+			<div class="row">
+				<div class="columns small-11 medium-9">
+					<md-slider aria-label="{{input.label}}" ng-if="input.step > 0" md-discrete ng-model="currentSettings[input.name]" step="{{input.step || 1}}" min="{{input.min || 0}}" max="{{input.max || 10}}"></md-slider>
+					<md-slider aria-label="{{input.label}}" ng-if="!input.step" ng-model="currentSettings[input.name]" min="{{input.min || 0}}" max="{{input.max || 10}}"></md-slider>
+				</div>
+				<div class="columns small-12 medium-3">
+					<md-input-container>
+						<input type="number" ng-model="currentSettings[input.name]" name="{{input.name}}" min="{{input.min || 0}}" max="{{input.max || 10}}" check-step="{{input.step}}" step="{{input.step}}" sng-required="true" ng-model-options="{ debounce: { 'blur': 100 } }">
+					</md-input-container>
+				</div>
+				<div ng-messages="$index[input.name].$error" class="columns small-12 error">
+					<small ng-message="required">This field is required.</small>
+					<small ng-message="number">Please enter a positive number.</small>
+					<small ng-message="min">Please enter a number greater than or equal to {{input.min || 0}}.</small>
+					<small ng-message="max">Please enter a number less than or equal to {{input.max || 10}}.</small>
+					<small ng-message="check">Please enter a multiple of {{input.step}}.</small>
+				</div>
+			</div>
+		</ng-form>
+		<ng-form ng-switch-when="sortable" class="sortable columns small-12 medium-9 large-7 xlarge-5">
+			<label for="{{input.name}}">
+				{{input.label}}
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</label>
+			<div ng-repeat="sorter in currentSettings[input.name]" class="{{sorter.name}}">
+				<label>{{sorter.name}}</label>
+				<div ng-messages="sortableErr" class="error" ng-if="$index == 0">
+					<small class="error" ng-message="na">There must be at least one codec enabled.</small>
+				</div>
+				<div as-sortable="dndSort" class="dndSorter {{sorter.req?'required':''}}" ng-model="sorter.props">
+					<div ng-repeat="item in sorter.props" as-sortable-item><span class="sort-handle" as-sortable-item-handle><h6>{{item.label}}</h6></span></div>
+				</div>
+			</div>
+		</ng-form>
+		<ng-form ng-switch-when="DST" class="dst columns small-12 large-10 xlarge-8" name="$index">
+			<label for="{{input.name}}">
+				{{input.label}}
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</label>
+			<div class="row">
+				<label for="{{input.name}}" ng-repeat="(k, v) in dst" class="columns small-12 medium-3">
+					{{v.label}}
+					<select format-array=":" index="{{$index}}" ng-model="currentSettings[input.name]" name="{{input.name}}" ng-options="opt.val as opt.label for opt in v.vals">
+					</select>
+				</label>
+				<label for="{{input.name}}" class="columns small-12 medium-3">
+					Hour
+					<select format-array=":" index="3" ng-model="currentSettings[input.name]" name="{{input.name}}" ng-options="opt.val as (currentSettings['sys.twenty-four-hour-time']==0?opt.label:opt.alt) for opt in dstHours">
+					</select>
+				</label>
+			</div>
+		</ng-form>
+		<ng-form ng-switch-when="multiNumber" class="multiNum columns small-12 large-10 xlarge-8" name="$index">
+			<label for="{{input.name}}">
+				{{input.label}}
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</label>
+			<div class="row">
+				<md-input-container ng-repeat="(k, v) in input.values" ng-switch="input.dataType" class="columns small-12 medium-4">
+					<label>{{v.label}}</label>
+					<input type="text" disabled ng-switch-when="array" format-array output="num" index="{{$index}}" ng-model="currentSettings[input.name]" name="{{input.name}}" ng-required="{{input.required == 1}}" ng-model-options="{ allowInvalid: true }">
+					<input type="text" disabled ng-switch-when="int" ng-model="currentSettings[v.name]" name="{{v.name}}" ng-required="{{input.required == 1}}" ng-model-options="{ allowInvalid: true }">
+				</md-input-container>
+			</div>
+		</ng-form>
+		<ng-form ng-switch-when="select" class="columns small-12 medium-10 large-8 xlarge-6">
+			<label for="{{input.name}}">
+				{{input.label}}
+			</label>
+			<select id="{{input.name}}" class="columns small-10 large-11" ng-model="currentSettings[input.name]" name="{{input.name}}" ng-options="opt.val as opt.label for opt in input.values"></select>
+			<div class="columns small-2 large-1">
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</div>
+		</ng-form>
+		<ng-form ng-switch-when="tmp" class="columns small-12 medium-10 large-8 xlarge-6">
+			<label for="{{input.name}}">
+				{{input.label}}
+			</label>
+			<select  id="{{input.name}}" class="columns small-10 large-11" ng-model="currentSettings[input.name]"  name="{{input.name}}" ng-change="deviceCmd('cam.camera-flicker', currentSettings[input.name]) "> <option ng-repeat="opt in input.values" ng-selected= "opt.val == currentSettings[input.name]" value="{{opt.val}}"> {{opt.label}} </option>
+			</select>
+			<div class="columns small-2 large-1">
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</div>
+		</ng-form>
+		<ng-form ng-switch-when="password" class="pad columns small-12 medium-10 large-8 xlarge-6" name="$index" autocomplete="off">
+		<!-- Hidden fields prevent autocomplete in firefox -->
+		<!--Dont see the point of this, taking out to fix bug where inccorent usernames password save is attempted by browsers-->
+			<input type="text" style="display:none">
+			<input type="password" style="display:none"> 
+
+			<md-input-container class="columns small-10 large-11">
+				<label>{{input.label}}</label>
+				<input type="password" ng-model="currentSettings[input.name]" name="{{input.name}}" ng-required="{{input.required == 1}}" ng-pattern="input.pattern" hash-pass="{{input.hash}}" autocomplete="{{input.name}}">
+				<div ng-messages="$index[input.name].$error">
+					<small ng-message="required">This field is required.</small>
+					<small ng-message="pattern">The password must be at least 4 characters.</small>
+				</div>
+			</md-input-container>
+			<div class="columns small-2 large-1 end">
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</div>
+			<md-input-container class="columns small-10 large-11 end" ng-if="input.name == 'sys.md5-password' && $index[input.name].$dirty && $index[input.name].$valid ">
+				<label>Confirm new password</label>
+				<input type="password" ng-model="confirm" name="confirm" match-to="currentSettings[input.name]" hash-pass="{{input.hash}}" ng-model-options="{ debounce: { 'default': 500 } }" required autocomplete="off">
+				<div ng-messages="$index.confirm.$error">
+					<small ng-message="required">This field is required.</small>
+					<small ng-message="match">The values do not match.</small>
+				</div>
+			</md-input-container>
+		</ng-form>
+		<ng-form ng-switch-when="telnet-password" class="pad columns small-12 medium-10 large-8 xlarge-6" name="$index">
+		<!-- Hidden fields prevent autocomplete in firefox -->
+			<input type="text" style="display:none">
+			<input type="password" style="display:none">
+			<md-input-container class="columns small-10 large-11">
+				<label>{{input.label}}</label>
+				<input type="password" ng-model="currentSettings[input.name]" name="{{input.name}}" ng-required="{{input.required == 1}}" ng-pattern="input.pattern"  autocomplete="off">
+				<div ng-messages="$index[input.name].$error">
+					<small ng-message="required">This field is required.</small>
+					<small ng-message="pattern">The password must be at least 4 characters.</small>
+				</div>
+			</md-input-container>
+			<div class="columns small-2 large-1 end">
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</div>
+			<md-input-container class="columns small-10 large-11 end" ng-if="input.name == 'sys.telnet-password' && $index[input.name].$dirty && $index[input.name].$valid ">
+				<label>Confirm new password</label>
+				<input type="password" ng-model="confirm" name="confirm" match-to="currentSettings[input.name]"   required autocomplete="off">
+				<div ng-messages="$index.confirm.$error">
+					<small ng-message="required">This field is required.</small>
+					<small ng-message="match">The values do not match.</small>
+				</div>
+			</md-input-container>
+		</ng-form>
+		<ng-form ng-switch-when="number" class="pad columns small-12 medium-10 large-8 xlarge-6" name="$index">
+			<md-input-container class="columns small-10 large-11">
+				<label>{{input.label}}</label>
+				<input type="number" ng-model="currentSettings[input.name]" name="{{input.name}}" ng-required="{{input.required == 1}}" min="{{input.min || 0}}" max="{{input.max || 604800}}" ng-model-options="{ debounce: { 'blur': 100} }">
+				<div ng-messages="$index[input.name].$error">
+					<small ng-message="required">This field is required.</small>
+					<small ng-message="number">Please enter a positive number.</small>
+					<small ng-message="min">Please enter a number greater than or equal to {{input.min || 0}}.</small>
+					<small ng-message="max">Please enter a number less than or equal to {{input.max || 604800}}.</small>
+				</div>
+			</md-input-container>
+			<div class="columns small-2 large-1">
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</div>
+		</ng-form>
+		<ng-form ng-switch-when="textarea" class="pad columns small-12 medium-10 large-8 xlarge-6" name="$index">
+			<md-input-container class="columns small-10 large-11">
+				<label>{{input.label}}</label>
+				<textarea ng-model="currentSettings[input.name]" name="{{input.name}}" columns="1" ng-required="{{input.required == 1}}"></textarea>
+				<div ng-messages="$index[input.name].$error">
+					<small ng-message="required">This field is required.</small>
+				</div>
+			</md-input-container>
+			<div class="columns small-2 large-1">
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</div>
+		</ng-form>
+		<ng-form ng-switch-when="upload" class="checkbox upload columns small-12">
+			<md-checkbox aria-label="{{input.name}}" disabled ng-model="currentSettings[input.name]" has-value>
+				<label for="{{input.name}}">
+					{{input.label}}
+					<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+				</label>
+			</md-checkbox>
+			<md-button class="md-raised md-primary" aria-label="Upload Certificate" ng-click="uploadDialog($event, input.req, input.name)">Upload Certificate</md-button>
+		</ng-form>
+		<ng-form ng-switch-when="btn" class="upload columns small-12">
+			<md-button class="md-raised md-primary" aria-label="{{input.label}}" ng-click="deviceCmd(input.name)">{{input.label}}</md-button>
+			<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+		</ng-form>
+		<ng-form ng-switch-when="ipAddress" class="pad columns small-12 medium-10 large-8 xlarge-6" name="$index">
+			<md-input-container class="columns small-10 large-11">
+				<label>{{input.label}}</label>
+				<input type="text" ng-model="currentSettings[input.name]" name="{{input.name}}" ng-required="{{input.required == 1}}" ng-pattern="/((?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{0,62}[a-zA-Z0-9]\.)+[a-zA-Z]{2,63}$)|^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)/" input-disabled="currentSettings[input.disabled]">
+				<div ng-messages="$index[input.name].$error">
+					<small ng-message="required">This field is required.</small>
+					<small ng-message="pattern">Please enter a valid IP address or domain name.</small>
+				</div>
+			</md-input-container>
+			<div class="columns small-2 large-1">
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</div>
+		</ng-form>
+		<ng-form ng-switch-default class="pad columns small-12 medium-10 large-8 xlarge-6" name="$index">
+			<md-input-container class="columns small-10 large-11">
+				<label>{{input.label}}</label>
+				<input type="text" ng-model="currentSettings[input.name]" name="{{input.name}}" ng-required="{{input.required == 1}}" ng-pattern="input.pattern" input-disabled="currentSettings[input.disabled]">
+				<div ng-messages="$index[input.name].$error">
+					<small ng-message="required">This field is required.</small>
+					<small ng-message="pattern">{{input.patternMsg}}</small>
+				</div>
+			</md-input-container>
+			<div class="columns small-2 large-1">
+				<a aria-haspopup="true" tabindex="-1" class="has-tip icon" tooltip-placement="top" tooltip-append-to-body="true" tooltip="{{input.info}}" ng-if="input.info != undefined">&#xe681;</a>
+			</div>
+		</ng-form>
+		<md-divider ng-if="!$first" class="mdDivider"></md-divider>
+	</div>
+</form>

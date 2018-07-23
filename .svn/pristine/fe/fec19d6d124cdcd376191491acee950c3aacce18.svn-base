@@ -1,0 +1,3762 @@
+(function() {
+  angular.module('r1kApp', ['ngSanitize', 'ui.router', 'angularFileUpload', 'ui.sortable', 'ngAnimate', 'ngMaterial', 'ngIdle', 'ngMessages', 'mm.foundation', 'ct.ui.router.extras']).config(["$urlRouterProvider", "$locationProvider", "$idleProvider", "$keepaliveProvider", "$mdThemingProvider", function($urlRouterProvider, $locationProvider, $idleProvider, $keepaliveProvider, $mdThemingProvider) {
+    var revoAccent, revoPrimary;
+    $urlRouterProvider.otherwise('/');
+    $locationProvider.html5Mode(true);
+    $idleProvider.idleDuration(15 * 60);
+    $idleProvider.warningDuration(30);
+    $keepaliveProvider.interval(30);
+    revoPrimary = $mdThemingProvider.extendPalette('deep-purple', {
+      '400': '4b1e78',
+      '500': '4b1e78'
+    });
+    $mdThemingProvider.definePalette('revoPrimary', revoPrimary);
+    revoAccent = $mdThemingProvider.extendPalette('green', {
+      'A200': '259b24'
+    });
+    $mdThemingProvider.definePalette('revoAccent', revoAccent);
+    return $mdThemingProvider.theme('default').primaryPalette('revoPrimary', {
+      'hue-1': '400'
+    }).accentPalette('revoAccent');
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=app.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').factory('Auth', ["$window", "$state", "$idle", "$rootScope", "$keepalive", "Device", function($window, $state, $idle, $rootScope, $keepalive, Device) {
+    var Auth, clearSession, storeSession, validateSession;
+    Auth = {};
+    Auth.sessionID = {};
+    clearSession = function() {
+      $window.localStorage.clear();
+      Auth.sessionID = {};
+      Device.sessionId('');
+      $idle.unwatch();
+      $keepalive.stop();
+      return $state.go('login');
+    };
+    storeSession = function(exp, id, ka) {
+      Auth.sessionID = {
+        id: id || Auth.sessionID.id,
+        keepAlive: ka !== void 0 ? ka : Auth.sessionID.keepAlive,
+        exp: exp ? Date.now() + (~~exp * 1000) : Auth.sessionID.exp
+      };
+      $window.localStorage.clear();
+      $window.localStorage['revoUC1k_session'] = JSON.stringify(Auth.sessionID);
+      Device.sessionId(Auth.sessionID.id);
+      return $rootScope.sessionExp = 0;
+    };
+    validateSession = function() {
+      var isUser, local, now;
+      isUser = 0;
+      local = $window.localStorage['revoUC1k_session'];
+      if (Auth.sessionID.id || local) {
+        Auth.sessionID = !Auth.sessionID.id ? JSON.parse(local) : Auth.sessionID;
+        now = Date.now();
+        if (!Auth.sessionID.exp || ((Auth.sessionID.exp - now) / 1000 / -60) > 15) {
+          $rootScope.timedOut = true;
+        } else {
+          isUser = 1;
+          storeSession();
+        }
+      }
+      return isUser;
+    };
+    $rootScope.$watch('sessionExp', function(x) {
+      if (x) {
+        return storeSession(x);
+      }
+    });
+    $rootScope.$watch('timedOut', function(x) {
+      if (x) {
+        return Auth.logout();
+      }
+    });
+    Auth.hashPass = function(pass) {
+      var md;
+      if (pass) {
+        md = forge.md.md5.create();
+        md.update(pass);
+        return md.digest().toHex();
+      }
+    };
+    Auth.login = function(exp, id, ka) {
+      return storeSession(exp, id, ~~ka);
+    };
+    Auth.user = function() {
+      return Auth.sessionID.keepAlive || validateSession();
+    };
+    Auth.watch = function() {
+      if (Auth.sessionID.keepAlive) {
+        return $keepalive.start();
+      } else {
+        return $idle.watch();
+      }
+    };
+    Auth.updateSession = function() {
+      return Device.request('requestProperties', {
+        keepAlive: ''
+      }).then(function(success) {
+        if (success["sessionId"] === Auth.sessionID.id) {
+          return storeSession(900);
+        }
+      });
+    };
+    Auth.logout = function() {
+      if ($state.current.name !== 'login') {
+        Device.request('requestProperties', {
+          logout: ''
+        }).then(function(success) {
+          if (success["sessionId"] === Auth.sessionID.id) {
+            return Auth.logout();
+          }
+        });
+      }
+      return clearSession();
+    };
+    return Auth;
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=auth.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(["$stateProvider", function($stateProvider) {
+    return $stateProvider.state('main.diag', {
+      url: 'diag',
+      templateUrl: 'app/diag/diag.html',
+      controller: 'DiagCtrl'
+    });
+  }]);
+
+  'use strict';
+
+  angular.module('r1kApp').controller('DiagCtrl', ["$scope", "Device", function($scope, Device) {
+    $scope.forms = diag.forms;
+    $scope.diag = [];
+    return $scope.submitForm = function(cmd) {
+      var data;
+      data = {};
+      data[cmd] = $scope.diag[cmd] || "";
+      return Device.request('requestStatus', data).then(function(x) {
+        return $scope.buildToast('Command has been sent.');
+      }, function() {
+        return $scope.buildToast('Uh oh! Couldn\'t send command. Is the device available?');
+      });
+    };
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=diag.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(["$stateProvider", function($stateProvider) {
+    return $stateProvider.state('dialog', {
+      url: '/dialog',
+      abstract: true,
+      template: '<ui-view/>',
+      onEnter: [
+        '$mdDialog', '$previousState', function($mdDialog, $previousState) {
+          return $mdDialog.show({
+            template: '<md-dialog aria-label="Dialog" class="toolDialog"><md-content><ui-view/></md-content></md-dialog>',
+            controller: [
+              '$scope', '$mdDialog', function($scope, $mdDialog) {
+                return $scope.closeDialog = function() {
+                  return $mdDialog.hide();
+                };
+              }
+            ]
+          })["finally"](function() {
+            return $previousState.go();
+          });
+        }
+      ]
+    });
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=dialog.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(["$stateProvider", function($stateProvider) {
+    return $stateProvider.state('dialog.tool', {
+      url: '/:toolID',
+      templateUrl: 'app/tools/tools.html',
+      controller: 'ToolsCtrl'
+    });
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=dialog.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(["$stateProvider", function($stateProvider) {
+    return $stateProvider.state('main.home', {
+      url: '',
+      templateUrl: 'app/home/home.html',
+      controller: 'HomeCtrl'
+    });
+  }]);
+
+  'use strict';
+
+  angular.module('r1kApp').controller('HomeCtrl', ["$scope", "$interval", "Device", function($scope, $interval, Device) {
+    var fmtBle, fmtBt, intUpdate;
+    $scope.squares = {
+      'system': {
+        title: ''
+      },
+      'media': {
+        title: ''
+      }
+    };
+    $scope.componentStatus = [
+      {
+        prop: "call.status.usb",
+        label: "USB Call Status",
+        cat: 'media'
+      }, {
+        prop: "audio.usb-audio-stream",
+        label: "USB Audio Stream",
+        cat: 'media',
+        type: 'bin'
+      }, {
+        prop: "cam.camera-status",
+        label: "Camera",
+        cat: 'media',
+        type: 'upgrade',
+        val: 'sys.camera-upgrade-status'
+      }, {
+        prop: "cam.camera-stream",
+        label: "Stream",
+        cat: 'media',
+        type: 'bin'
+      }, {
+        prop: "cam.camera-door",
+        label: "Privacy Door",
+        cat: 'media',
+        type: 'bin'
+      }, {
+        prop: "net.ip",
+        label: "IP Address",
+        cat: 'system'
+      }, {
+        prop: "sys.base-ver",
+        label: "Software Version",
+        cat: 'system'
+      }, {
+        prop: "sys.base-sernum",
+        label: "Serial Number",
+        cat: 'system'
+      }, {
+        prop: "net.mac",
+        label: "MAC Address",
+        cat: 'system'
+      }, {
+        prop: "sys.dialer-battery-state",
+        label: "Dialer Battery",
+        type: 'percent',
+        cat: 'media',
+        show: $scope.isVoip
+      }, {
+        prop: "sys.restart",
+        label: "Restart Device",
+        cat: 'system',
+        type: 'btn'
+      }
+    ];
+    $scope.btData = [
+      {
+        prop: "bt.bt-name",
+        label: "Bluetooth Name"
+      }, {
+        prop: "bt.bt-mac",
+        label: "Bluetooth MAC Address"
+      }, {
+        prop: "call.status.bt",
+        label: "Call Status",
+        show: 'bt.bt-connected'
+      }, {
+        prop: "bt.bt-paired-list",
+        label: "Paired Devices",
+        type: 'btnlist',
+        btns: [
+          {
+            cmd: 'bt.bt-disconnect',
+            label: 'Disconnect',
+            conn: true
+          }
+        ],
+        props: ['Name', 'MAC Address'],
+        headProp: "bt.bt-pair",
+        headShowProp: 'bt.bt-status',
+        headBtns: [
+          {
+            name: 'Pair',
+            val: 1,
+            hideVal: 'off'
+          }, {
+            name: 'Cancel Pairing',
+            val: 0,
+            showVal: 'pairing'
+          }, {
+            name: "Unpair All Devices",
+            prop: "bt.bt-unpair",
+            val: 'all'
+          }
+        ]
+      }
+    ];
+    $scope.bleData = [{}];
+    $scope.pairButton = function(click) {
+      $scope.pairLabel = $scope.isPairing ? 'Cancel Pairing' : 'Pair';
+      if (click) {
+        return $scope.deviceCmd('bt.bt-pair', ~~!$scope.isPairing);
+      }
+    };
+    fmtBt = function() {
+      var conList, list;
+      $scope.btStatus = $scope.currentSettings['bt.bt-status'].toLowerCase();
+      $scope.btPct = ~~$scope.currentSettings['sys.bt-upgrade-status'];
+      $scope.btUpgrade = $scope.btPct > 0;
+      $scope.isBt = $scope.btStatus !== 'off';
+      $scope.btPaired = $scope.currentSettings['bt.bt-paired-list'].length > 0;
+      $scope.btConnected = $scope.currentSettings['bt.bt-connected'] !== 0;
+      $scope.isPairing = ~~($scope.btStatus === 'pairing');
+      $scope.pairButton();
+      if ($scope.isBt && $scope.btPaired && $scope.btConnected) {
+        conList = $scope.currentSettings['bt.bt-connected'].split(' ');
+        list = $scope.currentSettings['bt.bt-paired-list'].split(',');
+        $scope.btPhones = [];
+        return angular.forEach(list, function(value, key) {
+          var ph, y;
+          if (value.length) {
+            y = value.indexOf(' ');
+            ph = [value.substr(0, y).trim(), value.substr(y).trim()];
+            ph.push(conList[0] === ph[0]);
+            return $scope.btPhones.push(ph);
+          }
+        });
+      }
+    };
+    fmtBle = function() {
+      $scope.bleStatus = $scope.currentSettings['ble.ble-status'].toLowerCase();
+      return $scope.isBle = $scope.bleStatus !== 'off';
+    };
+    fmtBt();
+    fmtBle();
+    intUpdate = $interval(function() {
+      return Device.request('requestStatus').then(function(stats) {
+        angular.forEach(stats, function(value, key) {
+          return $scope.currentSettings[key] = value || '';
+        });
+        fmtBt();
+        return fmtBle();
+      });
+    }, 2000);
+    $scope.upStr = function(str) {
+      var cap;
+      cap = str.slice(0, 1).toUpperCase();
+      return cap + str.slice(1);
+    };
+    return $scope.$on('$destroy', function() {
+      return $interval.cancel(intUpdate);
+    });
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=home.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(["$stateProvider", function($stateProvider) {
+    return $stateProvider.state('login', {
+      url: '/login',
+      views: {
+        "root": {
+          templateUrl: 'app/login/login.html',
+          controller: 'LoginCtrl'
+        }
+      }
+    });
+  }]);
+
+  'use strict';
+
+  angular.module('r1kApp').controller('LoginCtrl', ["$scope", "Auth", "$state", "$rootScope", "Device", "$timeout", function($scope, Auth, $state, $rootScope, Device, $timeout) {
+    var core, errorKeys;
+    errorKeys = {
+      noDevice: false,
+      noAuth: false,
+      required: false
+    };
+    core = {
+      vp: "sys.validate-password",
+      sid: "sessionId",
+      exp: "sessionDur"
+    };
+    $scope.auth = {
+      token: '',
+      saveSession: 0,
+      error: {
+        timedOut: $rootScope.timedOut
+      }
+    };
+    $timeout(function() {
+      if ($scope.token !== void 0) {
+        return $scope.maskPass($scope.token);
+      } else {
+        return $scope.token = '';
+      }
+    }, 300);
+    $scope.isLogin = 'loginBackground';
+    $scope.productTitle = 'Device Manager';
+    $scope.maskPass = function(t) {
+      return $scope.auth.token = Auth.hashPass(t);
+    };
+    return $scope.login = function() {
+      var pass;
+      $rootScope.timedOut = false;
+      $scope.auth.error = angular.copy(errorKeys);
+      if (!$scope.auth.token.length) {
+        return $scope.auth.error.required = true;
+      } else {
+        pass = {};
+        pass[core.vp] = $scope.auth.token;
+        return Device.request('requestProperties', pass).then(function(yay) {
+          if (~~yay[core.vp]) {
+            Auth.login(yay[core.exp], yay[core.sid], $scope.auth.saveSession);
+            return $state.go('main.home');
+          } else {
+            $scope.auth.error.noAuth = true;
+            return $scope.auth.token = '';
+          }
+        }, function(errMsg) {
+          return $scope.auth.error.noDevice = true;
+        });
+      }
+    };
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=login.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').factory('Device', ["$http", "$q", "$upload", "$interval", "$rootScope", function($http, $q, $upload, $interval, $rootScope) {
+    var Device, availSettings, availStats, sessionID;
+    sessionID = '';
+    Device = {};
+    Device.sessionId = function(x) {
+      return sessionID = x;
+    };
+    Device.baseUrl = function(r) {
+      return window.location.protocol + '//' + window.location.hostname + '/cgi-bin/cgiclient.cgi?' + r + (sessionID ? '=&sessionId=' + sessionID : '=');
+    };
+    Device.request = function(reqType, reqData) {
+      var data, def, url;
+      def = $q.defer();
+      url = Device.baseUrl(reqType);
+      data = {
+        url: url,
+        method: 'GET',
+        params: reqType === 'requestStatus' ? reqData || availStats : reqData || availSettings
+      };
+      $http(data).success(function(awesomeThings) {
+        var doc, j, parser;
+        parser = new DOMParser();
+        doc = parser.parseFromString(awesomeThings, "application/xml");
+        j = {};
+        angular.forEach(doc.getElementsByTagName('properties')[0].attributes, function(prop) {
+          return j[prop.name] = prop.value;
+        });
+        if (~~j["sessionExpired"]) {
+          $rootScope.timedOut = true;
+        } else {
+          $rootScope.sessionExp = 900;
+        }
+        return def.resolve(j);
+      }).error(function(errMsg) {
+        return def.reject(errMsg);
+      });
+      return def.promise;
+    };
+    Device.update = function(reqData, reqType) {
+      var def2, upload;
+      def2 = $q.defer();
+      upload = $upload.upload({
+        url: Device.baseUrl(reqType),
+        method: 'POST',
+        file: reqData
+      }).progress(function(evt) {
+        var msg, pct;
+        pct = parseInt(100.0 * evt.loaded / evt.total);
+        msg = 'upload';
+        if (pct === 100 && reqType === 'uploadFirmware') {
+          msg = 'init';
+          pct = -1;
+        }
+        return def2.notify([pct, msg]);
+      }).success(function(data) {
+        var cancelCheck, checkReboot, checkUpgrade, countReboot, rbtPost, rebootInt;
+        if (reqType === 'uploadFirmware') {
+          def2.notify([-1, 'init']);
+          countReboot = 0;
+          rebootInt = 15;
+          checkUpgrade = $interval(function() {
+            return Device.request('requestStatus').then(function(awesomeThings) {
+              var currStatus;
+              currStatus = awesomeThings["sys.upgrade-status"];
+              if (currStatus < 99) {
+                return def2.notify([currStatus, 'update']);
+              } else if (currStatus === 'WaitingCallEnd') {
+                return def2.notify([currStatus, 'WaitingCallEnd']);
+              } else if (currStatus === 'Flashing') {
+                return def2.notify([currStatus, 'Flashing']);
+              } else if (currStatus === 'Rebooting' || currStatus > 98) {
+                def2.notify([-1, 'reboot']);
+                cancelCheck(checkUpgrade);
+                return checkReboot();
+              } else {
+                def2.reject();
+                return cancelCheck(checkUpgrade);
+              }
+            }, function() {
+              def2.reject();
+              return cancelCheck(checkUpgrade);
+            });
+          }, 3000, 0);
+          cancelCheck = function(int) {
+            return $interval.cancel(int);
+          };
+          rbtPost = function(rbtCheck) {
+            countReboot++;
+            if (countReboot === rebootInt) {
+              def2.reject('device');
+              cancelCheck(rbtCheck);
+            }
+            return Device.request('requestStatus').then(function(woohoo) {
+              var rbtStatus;
+              rbtStatus = woohoo["sys.upgrade-status"];
+              if (rbtStatus === 'Ready') {
+                def2.resolve();
+                return cancelCheck(rbtCheck);
+              } else if (rbtStatus === 'Rebooting') {
+                return def2.notify([-1, 'reboot']);
+              }
+            }, function(badThings) {
+              return def2.notify([-1, 'reboot']);
+            });
+          };
+          return checkReboot = function() {
+            var rbtCheck;
+            return rbtCheck = $interval(function() {
+              return rbtPost(rbtCheck);
+            }, 20000, rebootInt);
+          };
+        } else {
+          $rootScope.sessionExp = 900;
+          return def2.resolve(data);
+        }
+      }, function() {
+        return def2.reject();
+      });
+      return def2.promise;
+    };
+    availSettings = {
+      "sys.ui-mask": "",
+      "sys.enable-deploy": "",
+      "sys.auto-deploy": "",
+      "sys.provisioning-interval": "",
+      "sys.ftp-srv1": "",
+      "sys.ftp-srv2": "",
+      "audio.ring-tone": "",
+      "audio.eq": "",
+      "audio.high-pass-filter": "",
+      "voip.codec1": "",
+      "voip.codec2": "",
+      "voip.codec3": "",
+      "voip.codec4": "",
+      "voip.codec5": "",
+      "voip.ptime": "",
+      "voip.mwi": "",
+      "voip.vm-number": "",
+      "voip.auto-answer": "",
+      "voip.do-not-disturb": "",
+      "voip.duration": "",
+      "voip.dial-plan": "",
+      "voip.always-forwarding": "",
+      "voip.always-forwarding-num": "",
+      "voip.busy-forwarding": "",
+      "voip.busy-forwarding-num": "",
+      "voip.noanswer-forwarding": "",
+      "voip.noanswer-forwarding-num": "",
+      "voip.noanswer-delay": "",
+      "sys.region": "",
+      "sys.time-zone": "",
+      "sys.twenty-four-hour-time": "",
+      "sys.date-format": "",
+      "sys.dst-enabled": "",
+      "sys.dst-start-rules": "",
+      "sys.dst-end-rules": "",
+      "net.dhcp": "",
+      "net.ip": "",
+      "net.subnet": "",
+      "net.gateway": "",
+      "net.dns1": "",
+      "net.dns2": "",
+      "net.ntp1": "",
+      "net.ntp2": "",
+      "net.ntp3": "",
+      "net.ntp4": "",
+      "net.vlan": "",
+      "net.vlan-id": "",
+      "net.dot1x-enabled": "",
+      "net.dot1x-auth-method": "",
+      "net.dot1x-anonymous-identity": "",
+      "net.dot1x-identity": "",
+      "net.dot1x-password": "",
+      "net.dot1x-cert-path": "",
+      "voip.registrar": "",
+      "voip.registrar-backup": "",
+      "voip.realm": "",
+      "voip.proxy": "",
+      "voip.reg-use-proxy": "",
+      "voip.user": "",
+      "voip.password": "",
+      "voip.id": "",
+      "voip.name": "",
+      "voip.reg-timeout": "",
+      "voip.rereg-delay": "",
+      "voip.use-timer": "",
+      "voip.timer-se": "",
+      "voip.timer-min-se": "",
+      "voip.use-100rel": "",
+      "voip.auto-update-nat": "",
+      "voip.no-refer-sub": "",
+      "voip.allow-strict": "",
+      "voip.min-size": "",
+      "voip.dtmf-method": "",
+      "voip.dtmf-rtp-payload-type": "",
+      "voip.media-onhold-method": "",
+      "voip.use-srtp": "",
+      "voip.rtp-port": "",
+      "voip.udp-tcp-selection": "",
+      "voip.local-port": "",
+      "voip.ip-addr": "",
+      "voip.stun-srv": "",
+      "voip.use-ice": "",
+      "voip.ice-regular": "",
+      "voip.ice-max-hosts": "",
+      "voip.ice-no-rtcp": "",
+      "voip.use-turn": "",
+      "voip.turn-srv": "",
+      "voip.turn-user": "",
+      "voip.turn-passwd": "",
+      "voip.turn-tcp": "",
+      "voip.set-qos": "",
+      "sys.verbose-log-enabled": "",
+      "sys.product": "",
+      "sys.base-ver": "",
+      "net.mac": "",
+      "sys.base-sernum": "",
+      "sys.voip-capable": "",
+      "sys.displaylink-capable": "",
+      "sys.systemname": "",
+      "sys.telnet-password": "",
+      "sys.require-https": "",
+      "sys.enable-btn-camera": "",
+      "sys.enable-btn-audio": "",
+      "sys.enable-btn-volume": "",
+      "sys.enable-btn-bluetooth": "",
+      "sys.enable-led-call": "",
+      "sys.enable-led-nfc": "",
+      "sys.power-saving-mode": "",
+      "sys.power-saving-time": "",
+      "sys.snmp-enable": "",
+      "sys.snmp-address": "",
+      "sys.snmp-community": "",
+      "sys.snmp-device-location": "",
+      "sys.snmp-contact-name": "",
+      "sys.aux-usb-ip": "",
+      "sys.aux-usb-subnet": "",
+      "sys.dialer-connection-mode": "",
+      "audio.analog-audio-in-mode": "",
+      "audio.analog-audio-in-gain": "",
+      "cam.camera-ptz-home": "",
+      "cam.camera-flicker": "",
+      "cam.cam-ptz-save-as-default": "",
+      "cam.cam-ptz-apply-defaults": "",
+      "cam.cam-image-save-as-default": "",
+      "cam.cam-image-apply-defaults": "",
+      "cam.camera-image-defaults": "",
+      "bt.bt-enable": "",
+      "bt.bt-mac": "",
+      "bt.bt-name": "",
+      "bt.bt-pin": "",
+      "bt.bt-pair-timeout": "",
+      "bt.bt-connect-timeout": "",
+      "bt.bt-autoconnect": "",
+      "ble.ble-advertise": "",
+      "ble.ble-pair-timeout": "",
+      "sys.enable-telnet": "",
+      "sys.recent-call-enabled": "",
+      "sys.language": "",
+      "ble.ble-status": "",
+      "ble.ble-paired": "",
+      "ble.ble-connected": ""
+    };
+    availStats = {
+      "call.status.usb": "",
+      "call.status.bt": "",
+      "sys.upgrade-status": "",
+      "sys.camera-upgrade-status": "",
+      "sys.bt-upgrade-status": "",
+      "sys.dialer-battery-state": "",
+      "audio.usb-audio-stream": "",
+      "cam.camera-status": "",
+      "cam.camera-stream": "",
+      "cam.camera-door": "",
+      "bt.bt-status": "",
+      "bt.bt-paired": "",
+      "bt.bt-paired-list": "",
+      "bt.bt-connected": "",
+      "ble.ble-status": "",
+      "ble.ble-paired": "",
+      "ble.ble-connected": "",
+      "cam.camera-pan": "",
+      "cam.camera-tilt": "",
+      "cam.camera-zoom": "",
+      "cam.camera-backlight": "",
+      "cam.camera-brightness": "",
+      "cam.camera-contrast": "",
+      "cam.camera-saturation": "",
+      "cam.camera-sharpness": "",
+      "cam.camera-hue": "",
+      "cam.camera-gamma": ""
+    };
+    return Device;
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=device.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(["$stateProvider", function($stateProvider) {
+    return $stateProvider.state('main', {
+      url: '/',
+      abstract: true,
+      sticky: true,
+      deepStateRedirect: true,
+      views: {
+        "root": {
+          templateUrl: 'app/main/main.html',
+          controller: 'MainCtrl'
+        }
+      },
+      resolve: {
+        loadSettings: ["Device", function(Device) {
+          return Device.request('requestProperties').then(function(res) {
+            return Device.request('requestStatus').then(function(statsRes) {
+              var currCfg, ro;
+              currCfg = angular.extend({}, res, statsRes);
+              ro = Object.keys(currCfg);
+              return function() {
+                var cfg, configVals, settingsSections;
+                cfg = {};
+                settingsSections = [];
+                angular.forEach(formData, function(v, i) {
+                  var cfgVal, ct, currLabel, currSetting, index, newOption, newVal, num, options, origVal, sortArray, sv;
+                  cfgVal = currCfg[v.name] === void 0 ? '' : currCfg[v.name];
+                  index = ro.indexOf(v.name);
+                  if (index !== -1) {
+                    ro.splice(index, 1);
+                  }
+                  if (v.section && settingsSections.indexOf(v.section) < 0) {
+                    settingsSections.push(v.section);
+                  }
+                  if (v.type === 'number' || v.type === 'range' || v.type === 'checkbox' || v.type === 'select' || v.type === 'addCheckbox' || v.type === 'tmp') {
+                    cfgVal = cfgVal.length > 0 && cfgVal == Number(cfgVal) ? Number(cfgVal) : cfgVal;
+                    if (v.type === 'checkbox' && cfgVal.length > 3) {
+                      cfgVal = cfgVal === "true" ? 1 : 0;
+                    }
+                  } else if (v.type === 'sortable') {
+                    cfgVal = [];
+                    sortArray = [];
+                    angular.forEach(v.lists, function(el, num) {
+                      return sortArray.push([]);
+                    });
+                    options = [];
+                    num = 1;
+                    ct = Object.keys(v.values).length;
+                    while (options.length < ct) {
+                      if (v.values[num] !== void 0) {
+                        origVal = currCfg[v.name + num];
+                        currSetting = ~~origVal;
+                        currLabel = '';
+                        newVal = 0;
+                        if (origVal === void 0 || origVal === "0") {
+                          angular.forEach(v.values, function(v2, n2) {
+                            if (options.indexOf(~~n2) === -1) {
+                              if (currSetting === 0) {
+                                currLabel = v2;
+                                return currSetting = ~~n2;
+                              }
+                            }
+                          });
+                        } else {
+                          newVal = currSetting;
+                          currLabel = v.values[currSetting];
+                        }
+                        if (origVal >= 0) {
+                          cfg[v.name + num] = newVal;
+                          ro.splice(ro.indexOf(v.name + num), 1);
+                        }
+                        options.push(currSetting);
+                        newOption = {
+                          value: currSetting,
+                          label: currLabel,
+                          setting: v.name
+                        };
+                        sv = newVal !== 0 ? 0 : 1;
+                        sortArray[sv].push(newOption);
+                      }
+                      num++;
+                    }
+                    angular.forEach(v.lists, function(el, num) {
+                      return cfgVal[num] = {
+                        name: el.name,
+                        props: sortArray[num],
+                        req: el.req
+                      };
+                    });
+                  }
+                  return cfg[v.name] = cfgVal;
+                });
+                angular.forEach(ro, function(rov, rok) {
+                  return cfg[rov] = currCfg[rov];
+                });
+                return configVals = {
+                  settingsSections: settingsSections,
+                  currentSettings: cfg
+                };
+              };
+            });
+          });
+        }]
+      }
+    });
+  }]).run(["$rootScope", "$state", "Auth", "$mdDialog", "$idle", "$window", "Device", function($rootScope, $state, Auth, $mdDialog, $idle, $window, Device) {
+    $rootScope.$on('$stateChangeStart', function(event, toState, toParams, fromState, fromParams) {
+      var isUser;
+      if (toParams.toolID === '' || toParams.sectionId === '') {
+        event.preventDefault();
+      }
+      isUser = Auth.user();
+      if (isUser && (toState.name === 'login' || toState.name === 'dialog')) {
+        event.preventDefault();
+        if (!fromState.name.length) {
+          return $state.go('main.home');
+        }
+      } else if (!isUser && toState.name !== 'login') {
+        event.preventDefault();
+        return $state.go('login');
+      }
+    });
+    $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
+      if (toState.url !== fromState.url && fromState.name.length > 1 && toState.name.search(/main/) === 0 && fromState.name.search(/dialog/) === -1) {
+        return $state.reload();
+      }
+    });
+    $rootScope.$on('$stateNotFound', function() {
+      return $state.go('main.home');
+    });
+    $rootScope.$on('$keepalive', function() {
+      if ($state.current.name !== 'main.home') {
+        return Auth.updateSession();
+      }
+    });
+    $rootScope.$on('$idleStart', function() {
+      $window.scroll(0, 0);
+      return $mdDialog.show({
+        clickOutsideToClose: false,
+        escapeToClose: false,
+        template: '<md-dialog aria-label="timeoutDialog"><md-content class="timeoutDialog"> <h2>Warning!</h2> <p>Your session will timeout soon unless user activity is detected.</p> <div class="progressCounter"><span>:</span>{{durTime}}</div> <md-progress-circular class="md-warn" mode="determinate" value="{{dur}}" md-diameter="100"></md-progress-circular> </md-content></md-dialog>',
+        controller: 'timeoutController'
+      });
+    });
+    $rootScope.$on('$idleTimeout', function() {
+      $rootScope.timedOut = true;
+      return $mdDialog.hide();
+    });
+    return $rootScope.$on('$idleEnd', function() {
+      Auth.updateSession();
+      return $mdDialog.hide();
+    });
+  }]).controller('timeoutController', ["$scope", function($scope) {
+    $scope.dur = 100;
+    $scope.durTime = "30";
+    return $scope.$on('$idleWarn', function(e, countdown) {
+      $scope.dur = ((countdown / 30) * 100).toFixed();
+      return $scope.durTime = countdown < 10 ? '0' + countdown : countdown;
+    });
+  }]);
+
+  'use strict';
+
+  angular.module('r1kApp').controller('MainCtrl', ["$scope", "loadSettings", "Device", "$state", "$stateParams", "Auth", "$mdDialog", "$mdToast", "$window", function($scope, loadSettings, Device, $state, $stateParams, Auth, $mdDialog, $mdToast, $window) {
+    var checkNewValue, deviceConfig, goUpdate, vals;
+    Auth.watch();
+    $scope.logout = function() {
+      return Auth.logout();
+    };
+    vals = loadSettings();
+    deviceConfig = vals.currentSettings;
+    $scope.isLogin = 'appBackground';
+    $scope.settingsSections = vals.settingsSections;
+    $scope.productTitle = deviceConfig["sys.product"];
+    $scope.formData = formData;
+    $scope.currentSettings = angular.copy(deviceConfig);
+    $scope.tools = tools;
+    $scope.isDiag = $state.current.url === 'diag' ? 'activeView' : '';
+    $scope.isVoip = ~~$scope.currentSettings['sys.voip-capable'];
+    $scope.voipOnly = ['calls', 'sip', 'transport'];
+    $scope.toolsMenu = 0;
+    if (!$scope.isVoip) {
+      $scope.settingsSections = [];
+      angular.forEach(vals.settingsSections, function(v) {
+        if ($scope.voipOnly.indexOf(v) === -1) {
+          return $scope.settingsSections.push(v);
+        }
+      });
+    }
+    angular.forEach($scope.tools, function(v, k) {
+      if ((v.menu && v.show) && !$scope.currentSettings[v.show]) {
+        v.menu = void 0;
+      }
+      if (v.menu) {
+        return $scope.toolsMenu++;
+      }
+    });
+    $scope.settingsMenu = $scope.settingsSections.length;
+    $scope.deviceCmd = function(cmd, val) {
+      if (val !== void 0) {
+        $scope.currentSettings[cmd] = val;
+      }
+      return $scope.updateSettings([cmd], true);
+    };
+    $scope.resetCurrentVal = function(x) {
+      return deviceConfig[x];
+    };
+    $scope.buildToast = function(msg, warn) {
+      var toast;
+      toast = {
+        template: '<md-toast' + (warn ? ' class="md-warn"' : '') + '>' + msg + '</md-toast>',
+        position: 'right',
+        parent: '.childState'
+      };
+      return $mdToast.show(toast);
+    };
+    $scope.updateSettings = function(a, b, c, d) {
+      var arr, confDiag, confirm, confirmMsg, msg, updateData;
+      arr = checkNewValue(a, b, c);
+      updateData = arr[0];
+      confirmMsg = arr[1];
+      confirm = '';
+      msg = {
+        'reboot': 'Performing this action requires rebooting the device. Would you like to continue?',
+        'reset': 'Performing this action will reset all device settings back to factory default and requires rebooting the device. Would you like to continue?',
+        'recents': 'Would you like to clear the recent call list?',
+        'bt': 'Changing Bluetooth settings will interrupt any current Bluetooth connection. Would you like to continue?'
+      };
+      angular.forEach(confirmMsg, function(value, key) {
+        if (confirm === '') {
+          confirm = msg[value] || '';
+        }
+        if (value === 'voip' || value === 'sip') {
+          updateData["voip.voip-commit"] = "";
+        }
+        if (value === 'net') {
+          updateData["net.net-commit"] = "";
+        }
+        if (value === 'reboot') {
+          return updateData["sys.restart"] = "";
+        }
+      });
+      if (confirm !== '') {
+        $window.scroll(0, 0);
+        confDiag = $mdDialog.show({
+          locals: {
+            goUpdate: goUpdate,
+            updateData: updateData,
+            confirm: confirm,
+            formCtrl: d
+          },
+          clickOutsideToClose: false,
+          escapeToClose: false,
+          disableParentScroll: false,
+          template: '<md-dialog aria-label="resetDialog"><md-content> <h2>Warning!</h2> <p class="warnMsg">{{confirmMsg}}</p> </md-content> <div class="md-actions"> <md-button class="md-raised" ng-click="close()">No</md-button> <md-button class="md-raised md-primary" ng-click="confirm()">Yes</md-button> </div> </md-dialog>',
+          controller: 'ResetController',
+          onComplete: function() {
+            return angular.element(document).find('body').css('overflow', 'hidden');
+          }
+        });
+        return confDiag.then(function() {
+          return angular.element(document).find('body').css('overflow', 'initial');
+        });
+      } else {
+        return goUpdate(updateData);
+      }
+    };
+    checkNewValue = function(newVals, override, callbacks) {
+      var cb, jsonArr;
+      jsonArr = {};
+      cb = [];
+      angular.forEach(newVals, function(value, key) {
+        var settingVal;
+        settingVal = $scope.currentSettings[value] === void 0 ? '' : $scope.currentSettings[value];
+        if (override || deviceConfig[value] !== settingVal) {
+          if (callbacks) {
+            cb.push(callbacks[value]);
+          }
+          return jsonArr[value] = settingVal;
+        }
+      });
+      cb;
+      return [jsonArr, cb];
+    };
+    return goUpdate = function(updateData, formCtrl) {
+      return Device.request('updateProperties', updateData).then(function(success) {
+        var go;
+        if (formCtrl !== void 0) {
+          formCtrl.$setPristine();
+        }
+        $scope.newSettings = [];
+        go = $state.transitionTo($state.current, $stateParams, {
+          reload: true,
+          inherit: true,
+          notify: true
+        });
+        return go.then(function() {
+          return $scope.buildToast('Settings have been updated!');
+        });
+      }, function() {
+        return $scope.buildToast('Uh oh! Couldn\'t update settings. Is the device available?');
+      });
+    };
+  }]).controller('ResetController', ["$scope", "$mdDialog", "updateData", "goUpdate", "confirm", "formCtrl", function($scope, $mdDialog, updateData, goUpdate, confirm, formCtrl) {
+    $scope.close = function() {
+      return $mdDialog.hide();
+    };
+    $scope.confirm = function() {
+      goUpdate(updateData, formCtrl);
+      return $mdDialog.hide();
+    };
+    return $scope.confirmMsg = confirm;
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=main.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').directive('matchTo', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        ngModel.$validators.match = function(modelValue) {
+          return angular.isUndefined(modelValue) || modelValue === scope.$eval(attrs.matchTo);
+        };
+        return scope.$watch(attrs.matchTo, function(n) {
+          if (n) {
+            return ngModel.$validate();
+          }
+        });
+      }
+    };
+  }).directive('form', function() {
+    return {
+      restrict: 'E',
+      link: function(scope, element, attrs) {
+        return scope.$watch('configForm.$submitted', function(n) {
+          if (n && Object.keys(scope.configForm.$error).length > 0) {
+            scope.configForm.$setPristine();
+            scope.buildToast((scope.configForm.$error.required ? 'Error! All required values must be provided.' : 'Error! Please correct invalid values.'), 1);
+            return angular.forEach(scope.configForm.$error, function(e, key) {
+              return angular.forEach(e, function(f) {
+                return angular.forEach(f.$error, function(x) {
+                  return x[0].$setTouched();
+                });
+              });
+            });
+          }
+        });
+      }
+    };
+  }).directive('inputDisabled', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        return scope.$watch(attrs.inputDisabled, function(n, o) {
+          if (n) {
+            return element.attr('disabled', 'true');
+          } else {
+            return element.removeAttr('disabled');
+          }
+        });
+      }
+    };
+  }).directive('checkStep', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        return ngModel.$validators.check = function(modelValue) {
+          if (attrs.checkStep > 0) {
+            return modelValue % attrs.checkStep === 0;
+          } else {
+            return true;
+          }
+        };
+      }
+    };
+  }).directive('hasValue', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        return ngModel.$formatters.push(function(v) {
+          var val;
+          val = v.length > 0;
+          element.css('display', val ? 'block' : 'none');
+          return val;
+        });
+      }
+    };
+  }).directive('formatArray', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        ngModel.$parsers.push(function(v) {
+          var char, ind, val;
+          char = attrs['formatArray'] || ' ';
+          val = ngModel.$modelValue.split(char);
+          ind = ~~attrs.index;
+          val[ind] = v;
+          return val.join(char);
+        });
+        return ngModel.$formatters.push(function(v) {
+          var char, ind, val;
+          char = attrs['formatArray'] || ' ';
+          val = v.split(char);
+          ind = ~~attrs.index;
+          if (attrs.output === 'num') {
+            return ~~val[attrs.index];
+          } else {
+            return val[attrs.index];
+          }
+        });
+      }
+    };
+  }).directive('hashPass', function() {
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        ngModel.$validators.pattern = function(m, v) {
+          var test;
+          if (attrs.hashPass && attrs.pattern && v) {
+            test = attrs.ngPattern.test(v);
+            if (!test) {
+              scope.configForm.$setPristine();
+            }
+            return test;
+          } else {
+            return true;
+          }
+        };
+        ngModel.$formatters.push(function(v) {
+          if (attrs.hashPass) {
+            return '';
+          } else {
+            return v;
+          }
+        });
+        return ngModel.$parsers.push(function(v) {
+          if (!v) {
+            ngModel.$setPristine();
+          }
+          if (attrs.hashPass && v) {
+            return scope.hash(v);
+          } else {
+            return v || '';
+          }
+        });
+      },
+      controller: ["$scope", "Auth", function($scope, Auth) {
+        return $scope.hash = function(v) {
+          return Auth.hashPass(v);
+        };
+      }]
+    };
+  }).directive('add', function() {
+    return {
+      restrict: 'A',
+      controller: ["$scope", function($scope) {
+        $scope.prop = [];
+        $scope.total = 0;
+        return $scope.addProp = function(propName, val) {
+          if ($scope.prop[propName] === void 0) {
+            $scope.prop[propName] = [];
+          }
+          $scope.prop[propName].unshift(val);
+          $scope.total = 0;
+          return angular.forEach($scope.prop[propName], function(value, key) {
+            return $scope.total += ~~value;
+          });
+        };
+      }]
+    };
+  }).directive('addTotal', function() {
+    return {
+      restrict: 'A',
+      require: ['ngModel', '^add'],
+      link: function(scope, element, attrs, req) {
+        var ngModel;
+        ngModel = req[0];
+        scope.addProp(attrs.name, attrs.addTotal);
+        ngModel.$formatters.push(function(v) {
+          var bt;
+          bt = v & ~~attrs.addTotal;
+          if (bt !== 0) {
+            return 1;
+          } else {
+            return 0;
+          }
+        });
+        return ngModel.$parsers.push(function(v) {
+          var val, x;
+          val = ~~ngModel.$modelValue;
+          x = 0;
+          if (val > scope.total) {
+            angular.forEach(scope.prop[attrs.name], function(t, k) {
+              var a;
+              a = val & ~~t;
+              return x = x + a;
+            });
+            val = x;
+          }
+          if (v === 1) {
+            return val + ~~attrs.addTotal;
+          } else {
+            return val - ~~attrs.addTotal;
+          }
+        });
+      }
+    };
+  }).directive('showMenu', function() {
+    return {
+      restrict: 'A',
+      controller: ["$state", "$scope", "$rootScope", function($state, $scope, $rootScope) {
+        $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
+          $scope.inactive = '';
+          if ($state.includes('dialog')) {
+            return $scope.inactive = $state.href(fromState.name, fromParams);
+          } else if (toState.name !== fromState.name) {
+            return $scope.showSubMenu = toState.name;
+          }
+        });
+        $scope.inactive = '';
+        $scope.showSubMenu = $state.current.name;
+        return $scope.selectMenu = function(m) {
+          $scope.showSubMenu = m || $state.current.name;
+          return $scope.$applyAsync();
+        };
+      }]
+    };
+  }).directive('showSubMenu', function() {
+    return {
+      restrict: 'A',
+      require: '^^showMenu',
+      link: function(scope, element, attrs) {
+        element.on('mouseenter', function() {
+          return scope.selectMenu(attrs.uiSref);
+        });
+        element.on('mouseleave', function() {
+          if (!element.hasClass('activeView')) {
+            return scope.selectMenu('');
+          }
+        });
+        return scope.$watchGroup(['showSubMenu', 'inactive'], function(n) {
+          if (attrs.uiSref === n[0] && !element.hasClass('activeView')) {
+            return element.addClass('showMenu');
+          } else {
+            return element.removeClass('showMenu');
+          }
+        });
+      }
+    };
+  }).directive('subMenu', ["$state", function($state) {
+    return {
+      restrict: 'A',
+      require: '^^showMenu',
+      link: function(scope, element, attrs) {
+        var hideMenu;
+        hideMenu = function(n) {
+          if (attrs.subMenu !== n) {
+            return element.addClass('ng-hide');
+          } else {
+            return element.removeClass('ng-hide');
+          }
+        };
+        scope.$watch('showSubMenu', function(n, o) {
+          return hideMenu(n);
+        });
+        element.on('mouseenter', function() {
+          return scope.selectMenu(attrs.subMenu);
+        });
+        return element.on('mouseleave', function() {
+          if (attrs.subMenu !== $state.current.name) {
+            return scope.selectMenu('');
+          }
+        });
+      }
+    };
+  }]).directive('subMenuParam', function() {
+    return {
+      restrict: 'A',
+      require: '^^showMenu',
+      link: function(scope, element, attrs) {
+        return scope.$watch('inactive', function(n) {
+          if (attrs.href === n && !element.hasClass('activeView')) {
+            return element.addClass('showMenu');
+          } else {
+            return element.removeClass('showMenu');
+          }
+        });
+      }
+    };
+  });
+
+}).call(this);
+
+//# sourceMappingURL=matchInput.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(["$stateProvider", function($stateProvider) {
+    return $stateProvider.state('main.settings', {
+      url: 'settings/',
+      abstract: true,
+      template: '<ui-view/>'
+    });
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=settings.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(["$stateProvider", function($stateProvider) {
+    return $stateProvider.state('main.settings.settingsForm', {
+      url: ':sectionId',
+      templateUrl: 'app/settings/settingsForm/settingsForm.html',
+      controller: 'SettingsformCtrl'
+    });
+  }]);
+
+  'use strict';
+
+  angular.module('r1kApp').controller('SettingsformCtrl', ["$scope", "$stateParams", "$state", "$window", "$interval", "Device", function($scope, $stateParams, $state, $window, $interval, Device) {
+    var callbacks, override, startVals, statUpdate;
+    $scope.currentSection = $stateParams.sectionId;
+    $scope.vfields = [0];
+    $scope.dst = dstValues;
+    $scope.dstHours = dstHours;
+    $scope.showSubmitButton = $scope.currentSection !== 'camera';
+    $scope.disableSubmit = true;
+    $scope.statusProps = [];
+    override = $scope.currentSection === 'network';
+    callbacks = [];
+    startVals = {};
+    if (angular.isUndefined($scope.currentSection)) {
+      $state.go('main.home', {}, {
+        reload: true,
+        inherit: false,
+        notify: true
+      });
+    }
+    angular.forEach($scope.formData, function(v, i) {
+      if (v.section === $scope.currentSection) {
+        if (v.field === void 0) {
+          $scope.formData[i].field = 0;
+        } else if ($scope.vfields.indexOf(v.field) < 0) {
+          if (v.show !== void 0) {
+            if ($scope.currentSettings[v.show]) {
+              $scope.vfields.push(v.field);
+            }
+          } else {
+            $scope.vfields.push(v.field);
+          }
+        }
+        if (v.type === 'multiNumber' && v.dataType === 'int') {
+          angular.forEach(v.values, function(value, key) {
+            return $scope.statusProps.push(value.name);
+          });
+        }
+        if (v.type === 'sortable') {
+          angular.forEach(v.values, function(value, key) {
+            var sVal;
+            sVal = v.name + key;
+            if ($scope.currentSettings[sVal] !== void 0) {
+              startVals[sVal] = $scope.resetCurrentVal(sVal);
+              return callbacks[sVal] = v.cb;
+            }
+          });
+        } else {
+          startVals[v.name] = $scope.resetCurrentVal(v.name);
+          $scope.currentSettings[v.name] = v.hash ? '' : $scope.currentSettings[v.name] || startVals[v.name];
+        }
+        if (v.cb) {
+          return callbacks[v.name] = v.cb;
+        }
+      }
+    });
+    if ($scope.statusProps.length > 0) {
+      statUpdate = $interval(function() {
+        Device.request('requestStatus').then(function(stats) {
+          return angular.forEach(stats, function(value, key) {
+            return $scope.currentSettings[key] = value || '';
+          });
+        });
+        return Device.request('requestProperties').then(function(stats) {
+          if ($scope.currentSection === 'camera') {
+            return angular.forEach(stats, function(value, key) {
+              return $scope.currentSettings[key] = value || '';
+            });
+          }
+        });
+      }, 2000);
+    }
+    $scope.$watchCollection('currentSettings', function(n) {
+      $scope.newSettings = [];
+      return angular.forEach(startVals, function(value, key) {
+        if (!($scope.currentSettings[key] === value)) {
+          $scope.configForm.$setDirty();
+          return $scope.newSettings.push(key);
+        }
+      });
+    });
+    $scope.submitProps = function() {
+      if ($scope.configForm.$valid) {
+        if (override) {
+          $scope.newSettings = Object.keys(startVals);
+        }
+        return $scope.updateSettings($scope.newSettings, override, callbacks, $scope.configForm);
+      }
+    };
+    $scope.sortableErr = {
+      na: false
+    };
+    $scope.dndSort = {
+      containment: '.sortable',
+      containerPositioning: 'relative',
+      accept: function(src) {
+        var item;
+        item = src.itemScope;
+        if (item.$last && item.$first && angular.element(item.sortableScope.element).hasClass('required')) {
+          $scope.sortableErr.na = true;
+          return false;
+        } else {
+          return true;
+        }
+      },
+      dragEnd: function(src) {
+        var count, sortName;
+        sortName = src.source.itemScope.modelValue.setting;
+        count = 0;
+        angular.forEach($scope.currentSettings[sortName], function(value, n) {
+          return angular.forEach(value.props, function(val, num) {
+            var prop;
+            prop = sortName + ++count;
+            if ($scope.currentSettings[prop] !== void 0) {
+              return $scope.currentSettings[prop] = n === 1 ? 0 : val.value;
+            }
+          });
+        });
+        if (!$scope.sortableErr.na && $scope.configForm.$pristine) {
+          $scope.configForm.$setDirty();
+        }
+        return $scope.sortableErr.na = false;
+      }
+    };
+    return $scope.uploadDialog = function($event, tool, name) {
+      var go, startState;
+      $event.preventDefault();
+      $window.scroll(0, 0);
+      startState = $state.current.name;
+      go = $state.go('dialog.tool', {
+        toolID: tool
+      }, {
+        location: false,
+        inherit: false
+      });
+      return go.then(function() {
+        var check;
+        if ($scope.currentSettings[name].length < 1) {
+          return check = $interval(function() {
+            if ($state.current.name === startState) {
+              $interval.cancel(check);
+              return Device.request('requestProperties').then(function(res) {
+                return $scope.currentSettings[name] = res[name];
+              });
+            }
+          }, 5000);
+        }
+      });
+    };
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=settingsForm.js.map
+
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(["$stateProvider", function($stateProvider) {
+    return $stateProvider.state('main.tools', {
+      url: 'tools/:toolID',
+      templateUrl: 'app/tools/tools.html',
+      controller: 'ToolsCtrl'
+    });
+  }]);
+
+  'use strict';
+
+  angular.module('r1kApp').controller('ToolsCtrl', ["$scope", "$stateParams", "Device", "$state", "$mdDialog", "$sce", function($scope, $stateParams, Device, $state, $mdDialog, $sce) {
+    var initFileInfo, toolID;
+    toolID = tools[$stateParams.toolID || $state.current.url];
+    if (angular.isUndefined(toolID)) {
+      $state.go('main.home', {}, {
+        reload: true,
+        inherit: false,
+        notify: true
+      });
+    } else {
+      $scope.dialog = $state.includes('dialog');
+      $scope.forms = toolID.forms;
+      $scope.newSettings = [];
+      $scope.cb = [];
+      angular.forEach($scope.forms, function(value, key) {
+        return angular.forEach(value.input, function(v, k) {
+          var x;
+          if (v.type !== 'file' && v.type !== 'form' && $scope.newSettings.indexOf(k) === -1) {
+            if (v.type === 'array') {
+              x = {};
+              angular.forEach(v.values, function(val, name) {
+                return x[name] = 0;
+              });
+              $scope.resets = x;
+            }
+            $scope.newSettings.push(k);
+            if (v.type !== 'checkbox') {
+              return $scope.currentSettings[k] = '';
+            }
+          }
+        });
+      });
+    }
+    $scope.resetDefaults = function(b) {
+      var a, x;
+      a = $scope.resets;
+      if (!a['all']) {
+        x = [];
+        angular.forEach(a, function(v, k) {
+          if (v) {
+            return x.push(k);
+          }
+        });
+        $scope.currentSettings[b] = x.join(':');
+        return $scope.cb = [];
+      } else {
+        $scope.currentSettings[b] = 'all';
+        return $scope.cb["sys.reset-setting"] = "reset";
+      }
+    };
+    initFileInfo = {
+      noSubmit: true,
+      bundle: formData,
+      errMsg: '',
+      state: ''
+    };
+    $scope.fileInfo = initFileInfo;
+    $scope.test = 'No';
+    $scope.$watch('fileInfo.bundle', function(v) {
+      if (v.name !== void 0) {
+        return $scope.test = 'Yes';
+      }
+    });
+    $scope.dropFile = function(files, accept) {
+      var toAccept;
+      $scope.fileInfo = angular.copy(initFileInfo);
+      $scope.fileInfo.bundle = files[0];
+      if (files.length === 1) {
+        toAccept = false;
+        if (angular.isArray(accept)) {
+          angular.forEach(accept, function(v, i) {
+            if (!toAccept) {
+              return toAccept = v.test(files[0].name);
+            }
+          });
+        } else {
+          toAccept = accept.test(files[0].name);
+        }
+        if (!toAccept) {
+          $scope.fileInfo.errMsg = 'This file does not appear to be the correct extension.';
+          return $scope.fileInfo.state = 'error';
+        } else {
+          $scope.fileInfo.noSubmit = false;
+          return $scope.fileInfo.state = 'valid';
+        }
+      } else {
+        $scope.fileInfo.errMsg = 'Sorry, but only a single file can be uploaded.';
+        return $scope.fileInfo.state = 'error';
+      }
+    };
+    $scope.submitForm = function(reqType) {
+      return $sce.trustAsResourceUrl(Device.baseUrl(reqType));
+    };
+    return $scope.updateFirmware = function(reqType) {
+      $mdDialog.show({
+        locals: {
+          type: reqType,
+          file: $scope.fileInfo.bundle,
+          dialog: $scope.dialog
+        },
+        clickOutsideToClose: false,
+        escapeToClose: false,
+        template: '<md-dialog aria-label="Alert" class="toolDialog"><md-content><div> <h6 class="progressMessage">{{upgrader.message}}</h6> <div class="dialogContent" ng-show="upgrader.show"> <span class="progressValue" ng-show="upgrader.total > 0"><strong>{{upgrader.total}}</strong><span>%</span></span> <md-progress-circular md-mode="indeterminate" md-diameter="110" class="outerProgress"></md-progress-circular> </div> <h6 class="versionMessage" ng-show="version.length > 0">v{{version}}</h6> </div></md-content> <md-button class="md-action md-raised md-primary" ng-if="confirm" ng-click="hideDialog()">OK</md-button></md-dialog>',
+        controller: 'notifyCtrl'
+      });
+      return $scope.fileInfo = initFileInfo;
+    };
+  }]);
+
+  angular.module('r1kApp').controller('notifyCtrl', ["$scope", "Device", "type", "file", "$mdDialog", "$state", "$window", "$timeout", "dialog", function($scope, Device, type, file, $mdDialog, $state, $window, $timeout, dialog) {
+    var bName, complete, int, notifyMsg, refresh, successMsg, version;
+    $window.scroll(0, 0);
+    successMsg = (function() {
+      switch (type) {
+        case 'uploadFirmware':
+          return 'Device has successfully been updated! App will be refreshed now.';
+        case 'importContacts':
+          return 'Contacts have been successfully imported!';
+        case 'importConfig':
+          return 'Device configuration has been successfully imported! For security, some SIP account settings aren\'t imported and must be provided to register with the SIP server.';
+        default:
+          return 'Upload successfully completed!';
+      }
+    })();
+    notifyMsg = {
+      'begin': 'Uploading file.',
+      'upload': type === 'importConfig' ? 'Applying new configuration.' : 'File upload complete.',
+      'init': 'Update initializing.',
+      'update': 'Device is updating.',
+      'WaitingCallEnd': 'Update waiting on SIP call to end.',
+      'Flashing': 'Update in progress.',
+      'reboot': 'Update complete! Rebooting device.',
+      'success': successMsg,
+      'error': 'Process could not be completed. Please check the device.',
+      'device': 'Update has successfully completed but the device is unavailable. Please check the device IP address.'
+    };
+    refresh = false;
+    int = '';
+    $scope.confirm = false;
+    $scope.version = '';
+    if (type === 'uploadFirmware') {
+      bName = file.name;
+      if (bName.search(/(FLX)/) > -1 && bName.search(/-/) > -1) {
+        version = bName.substr(0, bName.search(/[^A-Za-z0-9-]/));
+        $scope.version = version.replace(/(?:[^-]+-){3}(\d+)-(\d+)-(\d+)-(\d+)-?/g, '$1.$2.$3.$4');
+      }
+    }
+    $scope.hideDialog = function() {
+      $mdDialog.hide();
+      if (refresh) {
+        return $state.go('main.home').then(function() {
+          return $window.location.reload(true);
+        });
+      } else if (!dialog) {
+        return $state.reload();
+      }
+    };
+    $scope.upgrader = {
+      message: notifyMsg['begin'],
+      total: 0,
+      show: 1
+    };
+    Device.update(file, type).then(function(success) {
+      var m;
+      $scope.upgrader.total = 100;
+      m = 'success';
+      if (type === 'uploadFirmware') {
+        $scope.upgrader.message = notifyMsg[m];
+        refresh = true;
+        return $timeout($scope.hideDialog, 5000);
+      } else {
+        complete(m);
+        return $scope.upgrader.show = 0;
+      }
+    }, function(err) {
+      $scope.version = '';
+      $scope.upgrader.show = 0;
+      if (err) {
+        console.log('err', err);
+      }
+      return complete(err ? err : 'error');
+    }, function(notify) {
+      $scope.upgrader.message = notifyMsg[notify[1]];
+      if (type === 'uploadFirmware') {
+        if (notify[1] === 'upload') {
+          if (notify[0] < 100) {
+            return $scope.upgrader.message = notifyMsg['begin'];
+          }
+        } else if (notify[1] === 'update') {
+          return $scope.upgrader.total = notify[0];
+        } else {
+          return $scope.upgrader.total = 0;
+        }
+      } else {
+        return $scope.upgrader.total = notify[0];
+      }
+    });
+    return complete = function(t) {
+      $scope.upgrader.message = notifyMsg[t] || t;
+      return $scope.confirm = true;
+    };
+  }]);
+
+}).call(this);
+
+//# sourceMappingURL=tools.js.map
+
+
+var callCodecs = {
+    "1": 'G.722',
+    "2": 'G.711 µ-law (PCMU)',
+    "3": 'G.711 A-law (PCMA)',
+    "4": 'G.726',
+    "5": 'G.729'
+};
+var diag = {
+    forms: [
+      {
+        title: "DSP Status",
+        type: 'form',
+        info: 'This command will cause the DSP to report status in the support logs. After issuing this command, click <a href="/tools/logs">HERE</a> to download the logs from the Tools > Logs page.',
+        cmd: 'dsp.dump'
+      }, {
+        title: "Command",
+        type: 'input',
+        cmd: 'dsp.web-cmd'
+      }
+    ]
+};
+var tools = {
+  'update': {
+    menu: 'Update',
+    forms: [
+      {
+        submitLabel: 'Update firmware',
+        input: {
+          'bundle': {
+            type: 'file',
+            accept: [/.+\.\d+$/, /.+\.bundle$/, /.+\.img$/],
+            info: 'Firmware file should be named *.img. Please contact Revolabs for firmware file or assistance with updating if needed.',
+            reqType: 'uploadFirmware'
+          }
+        }
+      }
+    ]
+  },
+  'contacts': {
+    menu: 'Contacts',
+    show: 'sys.voip-capable',
+    forms: [
+      {
+        submitLabel: 'Export Contacts',
+        input: {
+          'export': {
+            type: 'form',
+            reqType: 'exportContacts',
+            info: 'Export saved contacts to a CSV file. The exported file can be imported to other devices or applications, or it can be used to edit contact details. To update edited contacts, use the import function below. NOTE: Contacts can be updated and added via import; however, to delete a contact you must use the dialer.'
+          }
+        }
+      }, {
+        submitLabel: 'Import Contacts',
+        input: {
+          'import': {
+            type: 'file',
+            label: 'Upload Contacts',
+            accept: /.+\.csv$/,
+            info: 'Contacts file must be a CSV file.',
+            reqType: 'importContacts'
+          }
+        }
+      }
+    ]
+  },
+  'config': {
+    menu: 'Configuration',
+    forms: [
+      {
+        submitLabel: 'Export Configuration',
+        input: {
+          'config': {
+            type: 'form',
+            info: 'Export device configuration to an XML file. This will export all settings except the system password and the SIP password.',
+            reqType: 'exportConfig'
+          }
+        }
+      }, {
+        submitLabel: 'Import Configuration',
+        input: {
+          'import': {
+            type: 'file',
+            accept: /.+\.xml$/,
+            info: 'Configuration file must be an XML file that was exported from another device.',
+            reqType: 'importConfig'
+          }
+        }
+      }, {
+        submitLabel: 'Reset Defaults',
+        info: 'Select which values to reset.',
+        input: {
+          'sys.reset-setting': {
+            type: 'array',
+            values: {
+              'voip': 'SIP settings',
+              'contacts': 'Contacts',
+              'recents': 'Call history',
+              'audio': 'Audio settings',
+              'network': 'Network settings',
+              'camera': 'Camera settings',
+              'bluetooth': 'Bluetooth settings',
+              'all': 'Restore ALL defaults'
+            }
+          }
+        }
+      }
+    ]
+  },
+  'logs': {
+    menu: 'Logs',
+    forms: [
+      {
+        submitLabel: 'Download Logs',
+        input: {
+          'logs': {
+            type: 'form',
+            info: 'Download support logs if requested by Revolabs technical support. Enable verbose logging below if needed.',
+            reqType: 'requestSupportLog'
+          }
+        }
+      }, {
+        submitLabel: 'Submit',
+        title: false,
+        input: {
+          'sys.verbose-log-enabled': {
+            type: 'checkbox',
+            label: 'Enable verbose logging'
+          }
+        }
+      }
+    ]
+  },
+  'dot1x': {
+    forms: [
+      {
+        submitLabel: 'Upload certificate',
+        input: {
+          'cert': {
+            type: 'file',
+            accept: [/.+\.pem$/, /.+\.der$/, /.+\.cet$/, /.+\.crt$/],
+            info: 'Certificate file should be named *.pem, *.der, *.crt, or *.cer. Please contact Revolabs for assistance with if needed.',
+            reqType: 'uploadDot1xCert'
+          }
+        }
+      }
+    ]
+  }
+};
+
+var formData = [
+    {
+        // Admin
+        name: 'sys.md5-password',
+        section: 'admin',
+        label: 'System password',
+        defaultVal: '7386',
+        type: 'password',
+        hash: 1,
+        pattern: /^(\d{4,64})$/,
+        info: 'The password is used to control access to the web interface and the advanced Administrator settings on the device. The password may only contain digits, and must be at least 4 characters, but less than 65 characters. The default password is 7386. This password should be changed by the system administrator. Please ensure that you take note of the changed password.'
+    },
+
+    {
+        name: 'sys.systemname',
+        section: 'admin',
+        label: 'System name',
+        type: 'text',
+        info: 'Specifies the system name. By default, this is set to the device\'s MAC address.'
+    }, {
+        name: 'sys.recent-call-enabled',
+        section: 'admin',
+        field: 'Security',
+        label: 'Enable call history',
+        defaultVal: 1,
+        type: 'checkbox',
+        cb: 'recents',
+        info: 'Use this option to enable or disable the call history list. By default this is enabled.'
+    // }, {
+    //     name: 'sys.web-enabled',
+    //     section: 'admin',
+    //     field: 'Security',
+    //     label: 'Enable web access',
+    //     type: 'checkbox',
+    //     cb: 'webAccess',
+    //     info: 'Use the Web Access Enabled option to enable or disable access to this application. Even if enabled, the web interface is password protected for all pages. It is restricted to Administrator use. If disabled, any web access is rejected. Once web access is disabled, it can only be enabled again by an administrator from the device. The default setting is On.'
+    }, {
+        name: 'sys.require-https',
+        section: 'admin',
+        field: 'Security',
+        label: 'Require HTTPS',
+        type: 'checkbox',
+        defaultVal: 0,
+        // cb: 'https',
+        info: 'Use the Require HTTPS option to enable or disable the HTTPS-only device web application. When set to on, the web application is only accessible via HTTPS, which ensures all web traffic is encrypted by full 256-bit AES encryption end-to-end. NOTE: When accessing the HTTPS web application, the browser may show a security warning, which must be bypassed. To disable the security warning, this must be set to Off. When set to Off, the web application is accessible using HTTP, which is insecure and does not provide any encryption of web traffic. The default setting is Off.'
+    // }, {
+    //     name: 'sys.upgrade-mode',
+    //     section: 'admin',
+    //     label: 'Upgrade mode',
+    //     type: 'select',
+    //     values: [{
+    //         'val': 'usb',
+    //         'label': 'USB only'
+    //     }, {
+    //         'val': 'ip',
+    //         'label': 'IP only'
+    //     }, {
+    //         'val': 'all',
+    //         'label': 'USB or IP'
+    //     }],
+    //     defaultVal: 'all',
+    //     info: 'Specifies the type of upgrade that is supported. By default, this is set to "USB or IP".'
+    }, {
+        name: 'sys.ui-mask',
+        section: 'admin',
+        field: 'Dialer Restrictions',
+        type: 'addCheckbox',
+        values: {
+            '8': 'Disable call history modification',
+            '16': 'Disable contacts modification',
+            '32': 'Disable Do not Disturb (DnD) setting'
+        },
+        info: 'Use this option to disable this feature in the dialer UI. Changes can only be made from the web UI. To fully restrict user access, disable web access as well. By default this is unchecked.'
+    }, {
+        name: 'sys.enable-telnet',
+        section: 'admin',
+        field: 'Security',
+        label: 'Enable telnet access',
+        type: 'checkbox',
+        cb: 'reboot',
+        info: 'Enable telnet access to the device. Changing this setting requires a device reboot. By default, this is disabled.'
+    }, {
+        name: 'sys.telnet-password',
+        section: 'admin',
+        field: 'Security',
+        label: 'Telnet password',
+        type: 'telnet-password',
+        info: 'The password is used with roomcontrol',
+        show: 'sys.enable-telnet'
+    }, 
+    //{
+    //    name: 'sys.dialer-connection-mode',
+    //    section: 'admin',
+    //    label: 'Enable BLE dialer',
+    //    type: 'checkbox',
+    //    defaultVal: 1,
+    //    info: 'Enable BLE (Bluetooth Low Energy) tablet/dialer connection mode to the base. The dialer can only be connected via BLE when enabled, otherwise it must be connected via USB if disabled. By default, this is enabled.',
+    //    show: 'sys.voip-capable'
+    // }, {
+    //     name: 'sys.aux-usb-port-mode',
+    //     section: 'admin',
+    //     field: 'Auxiliary USB',
+    //     label: 'USB mode',
+    //     type: 'select',
+    //     values: [{
+    //         'val': 0,
+    //         'label': 'USB Hub'
+    //     }, {
+    //         'val': 1,
+    //         'label': 'IP to Auxiliary'
+    //     }, {
+    //         'val': 2,
+    //         'label': 'OTG'
+    //     }],
+    //     info: 'Specifies the configuration of the aux USB port. 0: USB Hub, 1: IP to Aux, 2: OTG. By default, this is set to USB Hub.'
+    // }, {
+    //     name: 'sys.aux-usb-ip',
+    //     section: 'admin',
+    //     field: 'Auxiliary USB',
+    //     label: 'USB IP',
+    //     type: 'ipAddress',
+    //     subOpt: {
+    //         id: 'sys.aux-usb-port-mode',
+    //         val: 1
+    //     },
+    //     info: 'The IP address of the USB interface exposed from the USB aux port.'
+    // }, {
+    //     name: 'sys.aux-usb-subnet',
+    //     section: 'admin',
+    //     field: 'Auxiliary USB',
+    //     label: 'USB subnet',
+    //     type: 'ipAddress',
+    //     subOpt: {
+    //         id: 'sys.aux-usb-port-mode',
+    //         val: 1
+    //     },
+    //     info: 'The IP subnet address of the USB interface exposed from the USB aux port.'
+    //}, 
+    {
+        name: 'sys.enable-btn-camera',
+        section: 'admin',
+        field: 'Front Panel',
+        label: 'Enable camera button',
+        type: 'checkbox',
+        info: 'Enable/disable camera button on the front panel. By default, this is is enabled.'
+    }, {
+        name: 'sys.enable-btn-audio',
+        section: 'admin',
+        field: 'Front Panel',
+        label: 'Enable audio button',
+        type: 'checkbox',
+        info: 'Enable/disable audio button on the front panel. By default, this is is enabled.'
+    }, {
+        name: 'sys.enable-btn-volume',
+        section: 'admin',
+        field: 'Front Panel',
+        label: 'Enable volume buttons',
+        type: 'checkbox',
+        info: 'Enable/disable volume buttons on the front panel. By default, this is is enabled.'
+    }, {
+        name: 'sys.enable-btn-bluetooth',
+        section: 'admin',
+        field: 'Front Panel',
+        label: 'Enable bluetooth button',
+        type: 'checkbox',
+        info: 'Enable/disable bluetooth button on the front panel. By default, this is is enabled.'
+    }, {
+        name: 'sys.enable-led-call',
+        section: 'admin',
+        field: 'Front Panel',
+        label: 'Enable call light',
+        type: 'checkbox',
+        info: 'Enable/disable call status LED on the front panel. By default, this is is enabled.'
+    }, {
+        name: 'sys.power-saving-mode',
+        section: 'admin',
+        field: 'Power Saving',
+        label: 'Enable power saving mode',
+        type: 'checkbox',
+        info: 'Enable/disable power saving mode setting. By default, this is is enabled.'
+    }, {
+    //     name: 'sys.power-saving-components',
+    //     section: 'admin',
+    //     field: 'Power Saving',
+    //     label: 'Components',
+    //     type: 'text',
+    //     show: 'sys.power-saving-mode',
+    //     info: 'Configure components for power saving mode setting.'
+    // }, {
+        name: 'sys.power-saving-time',
+        section: 'admin',
+        field: 'Power Saving',
+        label: 'Timeout (minutes)',
+        type: 'number',
+        defaultVal: 20,
+        show: 'sys.power-saving-mode',
+        info: 'Configure power saving timeout in minutes. After this period elapses with no usage, the device will enter power saving mode. By default, this is is set to 20 minutes.'
+    }, {
+        name: 'sys.snmp-enable',
+        section: 'admin',
+        field: 'SNMP',
+        label: 'Enable SNMP',
+        type: 'checkbox',
+        // values: [{
+        //     'val': 0,
+        //     'label': 'Disabled'
+        // }, {
+        //     'val': 1,
+        //     'label': 'Enabled'
+        // }, {
+        //     'val': 2,
+        //     'label': 'Automatic'
+        // }],
+        info: 'Specifies SNMP access for the device. Disabled: the SNMP agent on the device is not running. Enabled: SNMP is available and the snmp-server property indicates the SNMP server address. By default, this is is set to Disabled.',
+        cb: 'net'
+    }, {
+        name: 'sys.snmp-address',
+        section: 'admin',
+        field: 'SNMP',
+        label: 'Server address',
+        type: 'ipAddress',
+        subOpt: {
+            id: 'sys.snmp-enable',
+            val: 1
+        },
+        info: 'Specifies SNMP server IP address when SNMP is set to enabled. Port 162 needs to be open on the server to get traps.',
+        cb: 'net'
+    }, {
+        name: 'sys.snmp-community',
+        section: 'admin',
+        field: 'SNMP',
+        label: 'Read-only community',
+        type: 'text',
+        subOpt: {
+            id: 'sys.snmp-enable',
+            val: 1
+        },
+        info: 'Specifies SNMP read-only community string when SNMP is set to enabled.',
+        cb: 'net'
+    }, {
+        name: 'sys.snmp-device-location',
+        section: 'admin',
+        field: 'SNMP',
+        label: 'Device location',
+        type: 'text',
+        subOpt: {
+            id: 'sys.snmp-enable',
+            val: 1
+        },
+        info: 'Specifies SNMP device location when SNMP is set to enabled.',
+        cb: 'net'
+    }, {
+        name: 'sys.snmp-contact-name',
+        section: 'admin',
+        field: 'SNMP',
+        label: 'Contact name',
+        type: 'text',
+        subOpt: {
+            id: 'sys.snmp-enable',
+            val: 1
+        },
+        info: 'Specifies SNMP contact name when SNMP is set to enabled.',
+        cb: 'net'
+    }, {
+        name: 'sys.enable-deploy',
+        section: 'admin',
+        field: 'Deployment Server',
+        label: 'Enable deployment server',
+        type: 'checkbox',
+        info: 'When enabled, the system can be configured to use a deployment server. By default this is enabled.'
+    }, {
+        name: 'sys.auto-deploy',
+        section: 'admin',
+        field: 'Deployment Server',
+        label: 'Enable automatic server discovery',
+        type: 'checkbox',
+        show: 'sys.enable-deploy',
+        info: 'When enabled, the system can be configured to automatically detect a deployment server via DHCP option 66 or the administrator can manually specify a deployment server address. By default this is enabled.'
+    }, {
+        name: 'sys.provisioning-interval',
+        section: 'admin',
+        field: 'Deployment Server',
+        label: 'Provisioning interval (minutes)',
+        defaultVal: 1440,
+        type: 'range',
+        max: 44640,
+        min: 1,
+        show: 'sys.enable-deploy',
+        info: 'Specify the provisioning interval for the device, in minutes. The default value is 1,440 (1 day), and the maximum interval is 44,640 (31 days).'
+    }, {
+        name: 'sys.ftp-srv1',
+        section: 'admin',
+        field: 'Deployment Server',
+        label: 'Primary server',
+        // type: 'ipAddress',
+        pattern: /^\S+$/g,
+        patternMsg: 'Please enter a valid IP address or domain name.',
+        placeholder: 'IP Address',
+        subOpt: {
+            parent: 'sys.enable-deploy',
+            id: 'sys.auto-deploy',
+            val: 0
+        },
+        required: 1,
+        info: 'If the deployment server is enabled but auto discovery is disabled, the administrator must manually specify a deployment server address. The primary server is required.'
+    }, {
+        name: 'sys.ftp-srv2',
+        section: 'admin',
+        field: 'Deployment Server',
+        label: 'Secondary server',
+        // type: 'ipAddress',
+        pattern: /^\S+$/g,
+        patternMsg: 'Please enter a valid IP address or domain name.',
+        placeholder: 'IP Address',
+        subOpt: {
+            parent: 'sys.enable-deploy',
+            id: 'sys.auto-deploy',
+            val: 0
+        },
+        info: 'If the deployment server is enabled but auto discovery is disabled, the administrator must manually specify a deployment server address. The secondary server is optional.'
+    }, {
+        // Audio
+        name: 'audio.analog-audio-in-mode',
+        section: 'audio',
+        field: 'TV Audio-In',
+        label: 'Enable manual gain',
+        type: 'checkbox',
+        defaultVal: 0,
+        info: 'Enable/disable manual gain for the TV audio in port. When disabled, gain is automatically determined, and when enabled, the gain value must be manually specified. By default, this is disabled.'
+    }, {
+        name: 'audio.analog-audio-in-gain',
+        section: 'audio',
+        field: 'TV Audio-In',
+        label: 'Manual gain',
+        type: 'range',
+        min: -12,
+        max: 40,
+        step: 0.5,
+        defaultVal: 4.5,
+        show: 'audio.analog-audio-in-mode',
+        info: 'For the TV audio in port, specify the manual gain setting in dB. By default, this is set to 4.5dB.'
+    }, {
+    //     name: 'audio.voice-pick-up-angle-left',
+    //     section: 'audio',
+    //     label: 'Left voice pick-up angle',
+    //     type: 'range',
+    //     min: -90,
+    //     max: 90,
+    //     defaultVal: 0,
+    //     info: 'The left-side voice pick-up angle in degrees. By default, this is set to 0.'
+    // }, {
+    //     name: 'audio.voice-pick-up-angle-right',
+    //     section: 'audio',
+    //     label: 'Right voice pick-up angle',
+    //     type: 'range',
+    //     min: -90,
+    //     max: 90,
+    //     defaultVal: 0,
+    //     info: 'The right-side voice pick-up angle in degrees. By default, this is set to 0.'
+    // }, {
+        name: 'voip.codec',
+        section: 'audio',
+        field: 'Media',
+        label: 'Audio codec',
+        type: 'sortable',
+        lists: [{
+            name: 'Enabled',
+            req: 1
+        }, {
+            name: 'Disabled'
+        }],
+        values: callCodecs,
+        cb: 'sip',
+        info: 'Drag and drop to sort audio codecs by priority. There must be at least one codec supported. The default supported codec priority are: G.722, G.711 µ-law (PCMU), G.711 A-law (PCMA), G.726, and G.729. If fewer codecs are desired, drag the unused codecs into \'Disabled\'.',
+        show: 'sys.voip-capable'
+    }, {
+        name: 'voip.ptime',
+        section: 'audio',
+        field: 'Media',
+        label: 'Codec ptime override (ms)',
+        defaultVal: 20,
+        type: 'range',
+        min: 10,
+        max: 60,
+        step: 10,
+        cb: 'sip',
+        info: 'The ptime (packetization interval) value for a codec determines the length of time in milliseconds represented by the media in an RTP packet which is used to transmit audio traffic. The valid range is 10-60 in 10 ms increments. For all of the codecs supported by the device, the default ptime value is 20 ms/packet.',
+        show: 'sys.voip-capable'
+    }, {
+        name: 'audio.eq',
+        section: 'audio',
+        label: 'Equalizer',
+        type: 'select',
+        values: [{
+            'val': 1,
+            'label': 'Voice Enhance'
+        }, {
+            'val': 2,
+            'label': 'Bass Boost'
+        }, {
+            'val': 3,
+            'label': 'Treble Boost'
+        }],
+        info: 'Adjust the speaker frequency response to your preference for the room and the types of calls. Voice Enhance is the default value.'
+    }, {
+        name: 'audio.high-pass-filter',
+        section: 'audio',
+        label: 'High pass filter',
+        type: 'select',
+        values: [{
+            'val': 0,
+            'label': 'None'
+        }, {
+            'val': 1,
+            'label': '110 Hz'
+        }, {
+            'val': 2,
+            'label': '140 Hz'
+        }, {
+            'val': 3,
+            'label': '175 Hz'
+        }, {
+            'val': 4,
+            'label': '225 Hz'
+        }],
+        info: 'High pass filters are provided to adjust the microphones frequency response to room and application requirements. Use the High-Pass filter in rooms that have a high background noise in the low frequencies (air conditioning, lighting fixtures, etc.). All filters are biquad filters, reducing the signal by 6dB per octave. By default this is disabled.'
+    }, {
+        // Bluetooth
+        name: 'bt.bt-enable',
+        section: 'bluetooth',
+        label: 'Enable Bluetooth',
+        type: 'checkbox',
+        info: 'Enable or disable Bluetooth basic-rate.',
+        cb: 'bt'
+    }, {
+        name: 'sys.enable-led-nfc',
+        section: 'bluetooth',
+        label: 'Enable NFC',
+        type: 'checkbox',
+        info: 'Enable/disable NFC and NFC Logo LED on the front panel. By default, this is is enabled.',
+        show: 'bt.bt-enable',
+        cb: 'bt'
+    }, {
+        name: 'bt.bt-name',
+        section: 'bluetooth',
+        label: 'Device name',
+        type: 'text',
+        show: 'bt.bt-enable',
+        info: 'The Bluetooth basic-rate device name advertised over the air. By default, this is set to the product name (Yamaha CS-700) followed by the device\'s MAC address.'
+    }, {
+        name: 'bt.bt-pin',
+        section: 'bluetooth',
+        label: 'Pairing pin',
+        type: 'text',
+        pattern: /^(\d{4})?$/,
+        patternMsg: 'Please enter exactly 4 digits.',
+        defaultVal: '0000',
+        show: 'bt.bt-enable',
+        info: 'The Bluetooth basic-rate pin for pairing. Pins must be exactly 4 digits. An empty field indicates that no PIN is required. By default, the PIN is set to 0000.',
+        cb: 'bt'
+    }, {
+        name: 'bt.bt-pair-timeout',
+        section: 'bluetooth',
+        label: 'Pairing and connection timeout (seconds)',
+        type: 'range',
+        min: 0,
+        max: 120,
+        step: 30,
+        defaultVal: 60,
+        show: 'bt.bt-enable',
+        info: 'Bluetooth basic-rate pairing and connecting timeout in seconds. After this time, the pairing and connecting modes will stop. A value of 0 indicates no timeout. By default, this is set to 60 seconds.',
+        cb: 'bt'
+    }, {
+    //     name: 'bt.bt-connect-timeout',
+    //     section: 'bluetooth',
+    //     label: 'Connection timeout (minutes)',
+    //     type: 'number',
+    //     defaultVal: 0,
+    //     max: 10080,
+    //     info: 'Bluetooth basic-rate connection timeout. After this time, a connected Bluetooth device will be disconnected. A value of 0 means never timeout, and the maximum is 10,080, or 1 week. By default, this is set to 0.',
+    //     cb: 'bt'
+    // }, {
+    //     name: 'bt.bt-autoconnect',
+    //     section: 'bluetooth',
+    //     label: 'Enable auto-connect',
+    //     type: 'checkbox',
+    //     defaultVal: 1,
+    //     info: 'Auto-connect to a paired Bluetooth basic-rate device when that device is in range. By default, this is enabled.',
+    //     cb: 'bt'
+    // }, {
+        name: 'ble.ble-advertise',
+        section: 'bluetooth',
+        field: 'BLE Dialer',
+        label: 'Enable BLE dialer',
+        type: 'checkbox',
+        defaultVal: 0,
+        info: 'Enable or disable Bluetooth Low Energy (BLE) dialer. By default, this is disabled.'
+        
+    }, {
+        // Camera
+   
+        name: 'cam.camera-ptz',
+        section: 'camera',
+        label: 'Active PTZ position',
+        type: 'multiNumber',
+        dataType: 'int',
+        values: [{
+            label: 'Pan',
+            name: 'cam.camera-pan',
+        }, {
+            label: 'Tilt',
+            name: 'cam.camera-tilt',
+        }, {
+            label: 'Zoom',
+            name: 'cam.camera-zoom',
+        }],
+        info: 'Active digital PTZ (Pan/Tilt/Zoom) positions for live camera stream. Pan and Tilt are available only when camera is zoomed in, and both revert to 0 when zoom is set to 1. By default, Pan and Tilt are set to 0 and Zoom is set to 1.'
+    }, {
+        name: 'cam.cam-save-as-default',
+        section: 'camera',
+        label: 'Set PTZ Home to active position',
+        type: 'btn',
+        info: 'Save the current PTZ position as the default values (PTZ home).'
+    }, {
+        name: 'cam.camera-ptz-home',
+        section: 'camera',
+        label: 'PTZ home position',
+        type: 'multiNumber',
+        dataType: 'array',
+        values: [{
+            label: 'Pan',
+            min: -30,
+            max: 30
+        }, {
+            label: 'Tilt',
+            min: -18,
+            max: 18
+        }, {
+            label: 'Zoom',
+            min: 1,
+            max: 22
+        }],
+        info: 'Default PTZ (Pan/Tilt/Zoom) settings for home position. When the device detects that the upstream USB connection has been established, either at startup or after a USB disconnection, it will revert to the default PTZ settings. By default, Pan and Tilt are set to 0 and Zoom is set to 1.'
+    }, {
+        name: 'cam.cam-apply-defaults',
+        section: 'camera',
+        label: 'Return to PTZ Home',
+        type: 'btn',
+        info: 'Apply the saved PTZ Home settings. These settings are also automatically applied when the device detects that the upstream USB connection has been established, either at startup or after a USB disconnection.'
+    }, {
+        name: 'cam.camera-image',
+        section: 'camera',
+        label: 'Active image settings',
+        type: 'multiNumber',
+        dataType: 'int',
+        values: [{
+            label: 'Backlight',
+            name: 'cam.camera-backlight',
+        }, {
+            label: 'Brightness',
+            name: 'cam.camera-brightness',
+        }, {
+            label: 'Contrast',
+            name: 'cam.camera-contrast',
+        }, {
+            label: 'Saturation',
+            name: 'cam.camera-saturation',
+        }, {
+            label: 'Sharpness',
+            name: 'cam.camera-sharpness',
+        }, {
+            label: 'Hue',
+            name: 'cam.camera-hue',
+        }, {
+            label: 'Gamma',
+            name: 'cam.camera-gamma',
+        }],
+        info: 'Active image settings (Backlight/Brightness/Contrast/Saturation/Sharpness/Hue/Gamma) settings for live camera stream.'
+    }, {
+        name: 'cam.cam-image-save-as-default',
+        section: 'camera',
+        label: 'Set image settings to active',
+        type: 'btn',
+        info: 'Save the current image settings as the default values.'
+    }, {
+        name: 'cam.camera-image-defaults',
+        section: 'camera',
+        label: 'Camera Image settings',
+        type: 'multiNumber',
+        dataType: 'array',
+        values: [{
+            label: 'Backlight',
+            min: -10,
+            max: 300
+        }, {
+            label: 'Brightness',
+            min: -10,
+            max: 300
+        }, {
+            label: 'Contrast',
+            min: -10,
+            max: 300
+        }, {
+            label: 'Saturation',
+            min: -10,
+            max: 300
+        }, {
+            label: 'Sharpness',
+            min: -10,
+            max: 300
+        }, {
+            label: 'Hue',
+            min: -10,
+            max: 300
+        }, {
+            label: 'Gamma',
+            min: -10,
+            max: 300
+        }],
+        info: 'Default  (Backlight/Brightness/Contrast/Saturation/Sharpness/Hue/Gamma) settings for image.'
+    }, {
+        name: 'cam.cam-image-apply-defaults',
+        section: 'camera',
+        label: 'Return to default image settings',
+        type: 'btn',
+        info: 'Apply the saved image default settings. These settings are also automatically applied when the device detects that the upstream USB connection has been established, either at startup or after a USB disconnection.'
+    }, {
+        name: 'cam.camera-flicker',
+        section: 'camera',
+        label: 'Power Line Frequency for Anti-Flicker',
+        type: 'tmp',
+        values: [{
+            'val': 1,
+            'label': '50Hz'
+        }, {
+            'val': 2,
+            'label': '60Hz'
+        }],
+        info: 'Adjust anti-flicker according to your power line frequency.'
+    }, {  //calls
+        name: 'voip.mwi',
+        section: 'calls',
+        label: 'Enable message waiting indication',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'Select this option to display the message waiting indicator (MWI) on the Dialer and to enable message waiting notifications from the PBX. The PBX must be configured to support voice mail for the registered user in order for this feature to work properly. This is unchecked by default.'
+    }, {
+        name: 'voip.do-not-disturb',
+        section: 'calls',
+        label: 'Set Do not Disturb (DnD) mode',
+        type: 'checkbox',
+        subOptHide: {
+            id: 'sys.ui-mask',
+            val: 32
+        },
+        info: 'This will put the device in Do not Disturb mode. By default this is disabled.'
+    }, {
+        name: 'voip.auto-answer',
+        section: 'calls',
+        label: 'Enable auto-answer',
+        type: 'checkbox',
+        cb: 'sip',
+        defaultVal: 0,
+        info: 'This option allows to automatically answer calls even if not physically at the location where the device is located. We recommend enabling this feature only for test purposes. Enable Auto-answer to automatically answer incoming calls. If the device is set to Do not Disturb or if there are no available lines, the Forward rules will apply. If there are no Forward rules specified, the incoming call will be sent to voice mail. If voice mail is not supported, the call will be rejected. By default this is unchecked.'
+    }, {
+        name: 'audio.ring-tone',
+        section: 'calls',
+        label: 'Ring tone',
+        defaultVal: 1,
+        type: 'select',
+        values: [{
+            'val': 0,
+            'label': 'Ring 1'
+        }, {
+            'val': 1,
+            'label': 'Ring 2'
+        }, {
+            'val': 2,
+            'label': 'Ring 3'
+        }, {
+            'val': 3,
+            'label': 'Ring 4'
+        }, {
+            'val': 4,
+            'label': 'Ring 5'
+        }, {
+            'val': 5,
+            'label': 'Ring 6'
+        }],
+        info: 'Select from one of the six provided ring tones, Ringer 1-Ringer 6. Ringer 1 is the default ringer.'
+    }, {
+        name: 'voip.vm-number',
+        section: 'calls',
+        label: 'Voicemail number',
+        type: 'text',
+        pattern: /^[\d*#]+$/,
+        info: 'Dialing this number will allow the user to access voicemail. By default this is blank.'
+    }, {
+        name: 'voip.duration',
+        section: 'calls',
+        label: 'Maximum call duration',
+        type: 'number',
+        cb: 'sip',
+        max: 10080,
+        info: 'Specify the maximum call duration in minutes. When the call duration reaches the maximum duration, the call will be automatically terminated. The maximum limit is 10,080 minutes, or 7 days. An empty field or 0 indicates no maximum, which is the default.'
+    }, {
+        name: 'voip.dial-plan',
+        section: 'calls',
+        label: 'Dial plan',
+        type: 'textarea',
+        info: 'If using a dial plan, enter the digits that should be dialed. By default there are no dial plan digits.'
+    }, {
+        name: 'voip.always-forwarding',
+        section: 'calls',
+        field: 'Forwarding',
+        label: 'Always forward',
+        type: 'checkbox',
+        info: 'Forward all incoming calls to the specified number. By default, this is unchecked.'
+    }, {
+        name: 'voip.always-forwarding-num',
+        section: 'calls',
+        field: 'Forwarding',
+        label: 'Forward number',
+        show: 'voip.always-forwarding',
+        type: 'text',
+        required: 1
+    }, {
+        name: 'voip.busy-forwarding',
+        section: 'calls',
+        field: 'Forwarding',
+        label: 'Forward on busy',
+        type: 'checkbox',
+        info: 'Forward incoming calls to the specified number if the local device is in \'Do not Disturb\' mode or if both lines are busy. By default, this is unchecked.'
+    }, {
+        name: 'voip.busy-forwarding-num',
+        section: 'calls',
+        field: 'Forwarding',
+        label: 'Forward number',
+        show: 'voip.busy-forwarding',
+        type: 'text',
+        required: 1
+    }, {
+        name: 'voip.noanswer-forwarding',
+        section: 'calls',
+        field: 'Forwarding',
+        label: 'Forward on no answer',
+        type: 'checkbox',
+        info: 'Forward incoming calls to the specified number if the call is not answered within the duration specified in the \'Delay on No Answer\' field. By default, this is unchecked.'
+    }, {
+        name: 'voip.noanswer-forwarding-num',
+        section: 'calls',
+        field: 'Forwarding',
+        label: 'Forward number',
+        show: 'voip.noanswer-forwarding',
+        type: 'text',
+        required: 1
+    }, {
+        name: 'voip.noanswer-delay',
+        section: 'calls',
+        field: 'Forwarding',
+        label: 'Delay on no answer',
+        defaultVal: 10,
+        type: 'range',
+        max: 30,
+        min: 2,
+        show: 'voip.noanswer-forwarding',
+        info: 'Specify the number of seconds to wait before forwarding an unanswered incoming call to the \'Forward on No Answer\' number. The default is 10 seconds.'
+    }, {
+        // Network
+        name: 'net.dhcp',
+        section: 'network',
+        label: 'Enable DHCP',
+        defaultVal: 1,
+        type: 'checkbox',
+        info: 'Enable or disable DHCP. If this is disabled, the Static IP Address, Subnet Mask, and Default Gateway must be provided in the fields below. By default this is enabled.'
+    }, {
+        name: 'net.ip',
+        section: 'network',
+        label: 'IP address',
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        disabled: 'net.dhcp',
+        required: 1,
+        info: 'The Static IP Address is the IP address that the network administrator has assigned to this device.'
+    }, {
+        name: 'net.subnet',
+        section: 'network',
+        label: 'Subnet mask',
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        disabled: 'net.dhcp',
+        required: 1,
+        info: 'Subnet Mask is used to determine the subnet to which this device belongs, for example, 255.255.255.0.'
+    }, {
+        name: 'net.gateway',
+        section: 'network',
+        label: 'Default gateway',
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        disabled: 'net.dhcp',
+        required: 1,
+        info: 'The Default Gateway is this device’s default router on the IP network. It is usually the router connecting the internal network with the outside network.'
+    }, {
+        name: 'net.dns1',
+        section: 'network',
+        label: 'Primary DNS',
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        disabled: 'net.dhcp',
+        info: 'This is the address of the primary Domain Name System (DNS) server that translates domain names into IP addresses. Sites often configure a primary DNS server and a secondary backup DNS server.'
+    }, {
+        name: 'net.dns2',
+        section: 'network',
+        label: 'Secondary DNS',
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        disabled: 'net.dhcp',
+        info: 'This is the address of the secondary DNS server.'
+    }, {
+        name: 'net.vlan',
+        section: 'network',
+        label: 'Voice VLAN',
+        defaultVal: 2,
+        type: 'select',
+        values: [{
+            'val': 0,
+            'label': 'Enabled'
+        }, {
+            'val': 1,
+            'label': 'Disabled'
+        }, {
+            'val': 2,
+            'label': 'Automatic'
+        }],
+        info: 'The Voice VLAN ID has to be specified, the system is not trying to determine the VLAN automatically. Use this setting if the device was not able to detect the VLAN environment automatically. \'Disabled\' switches off VLAN capabilities. The device will only communicate using the standard IP network. \'Automatic\' should be used in environments that provide a Voice VLAN with automatic detection. The device will determine the VLAN identifier and register in that network.',
+        show: 'sys.voip-capable'
+    }, {
+        name: 'net.vlan-id',
+        section: 'network',
+        label: 'VLAN ID',
+        type: 'number',
+        defaultVal: 3,
+        min: 1,
+        max: 4094,
+        required: 1,
+        cb: 'reboot',
+        subOpt: {
+            parent: 'sys.voip-capable',
+            id: 'net.vlan',
+            val: 0
+        },
+        info: 'Manually specify a VLAN ID value. VID range 1 to 4094, default is 3. Note per 802.1Q that VIDs 1 and 2 are reserved for specific uses.',
+        // show: 'sys.voip-capable'
+    }, {
+        name: 'net.dot1x-enabled',
+        section: 'network',
+        field: 'Authentication',
+        label: 'Enable 802.1x authentication',
+        type: 'checkbox',
+        info: 'Enable this option if devices require 802.1x authentication to access your network. Select the 802.1x authentication type and specify the required credentials. MD5 authentication requires a username and password. '
+    }, {
+        name: 'net.dot1x-auth-method',
+        section: 'network',
+        field: 'Authentication',
+        label: 'Authentication method',
+        type: 'select',
+        values: [ {
+            'val': 'MD5',
+            'label': 'MD5'
+        }],
+        show: 'net.dot1x-enabled'
+    }, {
+        name: 'net.dot1x-anonymous-identity',
+        section: 'network',
+        field: 'Authentication',
+        label: 'Anonymous identity',
+        type: 'text',
+        subOpt: {
+            parent: 'net.dot1x-enabled',
+            id: 'net.dot1x-auth-method',
+            val: 'peap'
+        },
+        required: 1
+    }, {
+        name: 'net.dot1x-cert-path',
+        section: 'network',
+        field: 'Authentication',
+        label: 'CA certificate present',
+        type: 'upload',
+        req: 'dot1x',
+        subOpt: {
+            parent: 'net.dot1x-enabled',
+            id: 'net.dot1x-auth-method',
+            val: 'peap'
+        }
+    }, {
+        name: 'net.dot1x-identity',
+        section: 'network',
+        field: 'Authentication',
+        label: 'Username',
+        type: 'text',
+        show: 'net.dot1x-enabled',
+        required: 1
+    }, {
+        name: 'net.dot1x-password',
+        section: 'network',
+        field: 'Authentication',
+        label: 'Password',
+        type: 'password',
+        show: 'net.dot1x-enabled',
+        required: 1
+    }, {
+        // Region
+        name: 'sys.language',
+        section: 'region',
+        label: 'System language',
+        defaultVal: 1,
+        type: 'select',
+        values: [{
+            'val': 1,
+            'label': 'English'
+        }, {
+            'val': 2,
+            'label': 'Español'
+        }, {
+            'val': 3,
+            'label': 'Deutsch'
+        }, {
+            'val': 4,
+            'label': 'Français'
+        }, {
+            'val': 5,
+            'label': 'Italiano'
+        }, {
+            'val': 6,
+            'label': 'Português'
+        }, {
+            'val': 7,
+            'label': '中文'
+        }, {
+            'val': 8,
+            'label': '日本語'
+        }],
+        cb: 'reboot',
+        info: 'Select the device language from the list of available languages. The default language is English.'
+    }, {
+        name: 'sys.region',
+        section: 'region',
+        label: 'Regional call progress tones',
+        type: 'select',
+        values: [{
+            'val': 1,
+            'label': 'Argentina'
+        }, {
+            'val': 2,
+            'label': 'Australia'
+        }, {
+            'val': 3,
+            'label': 'Belgium'
+        }, {
+            'val': 4,
+            'label': 'Brazil'
+        }, {
+            'val': 5,
+            'label': 'Canada'
+        }, {
+            'val': 6,
+            'label': 'Chile'
+        }, {
+            'val': 7,
+            'label': 'China'
+        }, {
+            'val': 8,
+            'label': 'Costa Rica'
+        }, {
+            'val': 9,
+            'label': 'France'
+        }, {
+            'val': 10,
+            'label': 'Germany'
+        }, {
+            'val': 11,
+            'label': 'Hong Kong'
+        }, {
+            'val': 12,
+            'label': 'India'
+        }, {
+            'val': 13,
+            'label': 'Israel'
+        }, {
+            'val': 14,
+            'label': 'Italy'
+        }, {
+            'val': 15,
+            'label': 'Japan'
+        }, {
+            'val': 16,
+            'label': 'Malaysia'
+        }, {
+            'val': 17,
+            'label': 'Mexico'
+        }, {
+            'val': 18,
+            'label': 'New Zealand'
+        }, {
+            'val': 19,
+            'label': 'Singapore'
+        }, {
+            'val': 20,
+            'label': 'South Africa'
+        }, {
+            'val': 21,
+            'label': 'Taiwan'
+        }, {
+            'val': 22,
+            'label': 'United Kingdom'
+        }, {
+            'val': 23,
+            'label': 'USA'
+        }, {
+            'val': 24,
+            'label': 'Venezuela'
+        }],
+        info: 'Select the country or region you are in, or the closest. Please change this setting from the current region to another region only if you move the unit to that different country/region, or if advised by Yamaha support to do so. The default region is USA/Canada.',
+        show: 'sys.voip-capable'
+    }, {
+        name: 'sys.time-zone',
+        section: 'region',
+        label: 'Time zone',
+        defaultVal: 6,
+        type: 'select',
+        values: [{
+            'val': 0,
+            'label': '-11:00 American Samoa'
+        }, {
+            'val': 1,
+            'label': '-10:00 Hawaii'
+        }, {
+            'val': 2,
+            'label': '-9:00 Alaska'
+        }, {
+            'val': 3,
+            'label': '-8:00 Pacific Time'
+        }, {
+            'val': 4,
+            'label': '-7:00 Mountain Time'
+        }, {
+            'val': 5,
+            'label': '-6:00 Central Time'
+        }, {
+            'val': 6,
+            'label': '-5:00 Eastern Time'
+        }, {
+            'val': 7,
+            'label': '-4:30 Caracas'
+        }, {
+            'val': 8,
+            'label': '-4:00 Atlantic Time'
+        }, {
+            'val': 9,
+            'label': '-3:30 Newfoundland'
+        }, {
+            'val': 10,
+            'label': '-3:00 Brazil/Argentina'
+        }, {
+            'val': 11,
+            'label': '-2:00 Mid Atlantic'
+        }, {
+            'val': 12,
+            'label': '-1:00 Azores'
+        }, {
+            'val': 13,
+            'label': '0:00 GMT'
+        }, {
+            'val': 14,
+            'label': '+1:00 Berlin/Paris'
+        }, {
+            'val': 15,
+            'label': '+2:00 Athens'
+        }, {
+            'val': 16,
+            'label': '+3:00 Kuwait'
+        }, {
+            'val': 17,
+            'label': '+3:30 Tehran'
+        }, {
+            'val': 18,
+            'label': '+4:00 Abu Dhabi'
+        }, {
+            'val': 19,
+            'label': '+4:30 Kabul'
+        }, {
+            'val': 20,
+            'label': '+5:00 Islamabad'
+        }, {
+            'val': 21,
+            'label': '+5:30 Mumbai'
+        }, {
+            'val': 22,
+            'label': '+5:45 Kathmandu'
+        }, {
+            'val': 23,
+            'label': '+6:00 Dhaka'
+        }, {
+            'val': 24,
+            'label': '+6:30 Yangon'
+        }, {
+            'val': 25,
+            'label': '+7:00 Bangkok'
+        }, {
+            'val': 26,
+            'label': '+8:00 Beijing/Hong Kong'
+        }, {
+            'val': 27,
+            'label': '+9:00 Tokyo'
+        }, {
+            'val': 28,
+            'label': '+9:30 Adelaide'
+        }, {
+            'val': 29,
+            'label': '+10:00 Sydney'
+        }, {
+            'val': 30,
+            'label': '+11:00 New Caledonia'
+        }, {
+            'val': 31,
+            'label': '+12:00 Auckland'
+        }, {
+            'val': 32,
+            'label': '+13:00 Nuku\'alofa'
+        }],
+        info: 'Select the local time zone, indicated as an offset from Greenwich Mean Time (GMT). The default setting is GMT -5 Eastern Standard Time.'
+    }, {
+        name: 'sys.date-format',
+        section: 'region',
+        field: 'Time',
+        label: 'Date format',
+        type: 'select',
+        values: [{
+            'val': 'MM/DD/YYYY',
+            'label': 'MM/DD/YYYY'
+        }, {
+            'val': 'DD/MM/YYYY',
+            'label': 'DD/MM/YYYY'
+        }, {
+            'val': 'YYYY/MM/DD',
+            'label': 'YYYY/MM/DD'
+        }],
+        info: 'Select a date format that is appropriate for your locale. The default setting is Month/Day/Year (MM/DD/YYYY).'
+    }, {
+        name: 'sys.twenty-four-hour-time',
+        section: 'region',
+        field: 'Time',
+        label: 'Enable 24 hour time format',
+        type: 'checkbox',
+        info: 'Check this to enable 24 hour time format. This is off by default.'
+    }, {
+        name: 'net.ntp-enabled',
+        section: 'region',
+        field: 'Time',
+        label: 'NTP support',
+        type: 'checkbox',
+        info: 'Check this to enable NTP support. This is off by default.'
+    }, {
+     
+        name: 'net.ntp1',
+        section: 'region',
+        field: 'Time',
+        label: 'Network time server 1',
+        defaultVal: 'time-a.nist.gov',
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        required: 1,
+        show: 'net.ntp-enabled',
+        info: 'Specifies the IP addresses of NTP (Network Time Protocol) servers. The device will provide standard NTP servers at start-up. If local NTP servers or other NTP servers should be used, provide them in these settings.'
+    }, {
+        name: 'net.ntp2',
+        section: 'region',
+        field: 'Time',
+        label: 'Network time server 2',
+        defaultVal: 'time-b.nist.gov',
+        show: 'net.ntp-enabled',
+        type: 'ipAddress'
+    }, {
+        name: 'net.ntp3',
+        section: 'region',
+        field: 'Time',
+        label: 'Network time server 3',
+        show: 'net.ntp-enabled',
+        type: 'ipAddress'
+    }, {
+        name: 'net.ntp4',
+        section: 'region',
+        field: 'Time',
+        label: 'Network time server 4',
+        show: 'net.ntp-enabled',
+        type: 'ipAddress'
+    }, {
+        name: 'sys.dst-enabled',
+        section: 'region',
+        field: 'Daylight Saving',
+        label: 'Enable Daylight Saving Time adjustment',
+        defaultVal: 1,
+        type: 'checkbox',
+        info: 'Specify whether you want the system to automatically adjust the time according to your locale\'s DST rules. If enabled, the DST rules must be provided below. If disabled, the system will not adjust for DST. By default this is disabled.'
+    }, {
+        name: 'sys.dst-start-rules',
+        section: 'region',
+        field: 'Daylight Saving',
+        label: 'Daylight Saving Time start time',
+        show: 'sys.dst-enabled',
+        type: 'DST',
+        info: 'Use the DST Start Rule options to indicate the month, week, day and hour that the time changes. In the US, this defaults to the second Sunday in March at 2 AM, when the clock is adjusted ahead 1 hour to 3 AM.'
+    }, {
+        name: 'sys.dst-end-rules',
+        section: 'region',
+        field: 'Daylight Saving',
+        label: 'Daylight Saving Time end time',
+        show: 'sys.dst-enabled',
+        type: 'DST',
+        info: 'Use the DST End Rule options to indicate the month, week, day and hour that the time changes. In the US, this defaults to the first Sunday in November at 2 AM, when the clock is adjusted back 1 hour to 1 AM.'
+    }, {
+        // SIP
+        name: 'voip.registrar',
+        section: 'sip',
+        field: 'Registration',
+        label: 'Registrar',
+        required: 1,
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        cb: 'sip',
+        info: 'This is the IP address or DNS name of the SIP registrar server. This is required.'
+    }, {
+        name: 'voip.registrar-backup',
+        section: 'sip',
+        field: 'Registration',
+        label: 'Backup registrar',
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        cb: 'sip',
+        info: 'must'
+    }, {
+        name: 'voip.realm',
+        section: 'sip',
+        field: 'Registration',
+        label: 'VoIP realm',
+        type: 'text',
+        cb: 'sip',
+        info: 'This field is the realm of the credential to authenticate against the server. The value here must match the realm sent by the server in the WWW-Authenticate or Proxy-Authenticate header in the 401/407 response. Use an asterisk (\'*\') if the realm is not known, which will cause the endpoint to respond to any realms.'
+    }, {
+        name: 'voip.proxy',
+        section: 'sip',
+        field: 'Registration',
+        label: 'Proxy',
+        type: 'text',
+        cb: 'sip',
+        info: 'Enter the outbound SIP proxy server’s IP address or name here. If there are multiple SIP proxies, separate the addresses by a comma. Also note that if the allow strict routing option is set and you have a SIP proxy that is configured for loose routing, add the \';lr\' designation after the proxy’s address, for example, \'10.134.129.101;lr\'.'
+    }, {
+        name: 'voip.reg-use-proxy',
+        section: 'sip',
+        field: 'Registration',
+        label: 'Use proxy for registration',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'Use this option to indicate whether or not the SIP proxy server(s) specified in the Proxy field should be used when registering. Selecting this option will add the listed proxy server(s) to the route headers of the SIP REGISTER request. By default, this is disabled.'
+    }, {
+        name: 'voip.user',
+        section: 'sip',
+        field: 'Registration',
+        label: 'Username',
+        required: 1,
+        type: 'text',
+        cb: 'sip',
+        info: 'This is the username for the account used to authenticate with the SIP registrar and proxies. This is required.'
+    }, {
+        name: 'voip.password',
+        section: 'sip',
+        field: 'Registration',
+        label: 'Password',
+        type: 'password',
+        cb: 'sip',
+        info: 'This is the password for the account used to authenticate with the SIP registrar and proxies. This is required.'
+    }, {
+        name: 'voip.id',
+        section: 'sip',
+        field: 'Registration',
+        label: 'User ID',
+        type: 'text',
+        cb: 'sip',
+        info: 'ID is the device\'s SIP ID used for SIP registration. If this field is left blank, the Username field will be used as the ID.'
+    }, {
+        name: 'voip.name',
+        section: 'sip',
+        field: 'Registration',
+        label: 'Display name',
+        type: 'text',
+        cb: 'sip',
+        info: 'Display Name is shown when you make outbound calls. If you do not provide a Display Name, the Username will be used. Please note that your IP PBX might override the Display name sent by the device and replace it with names configured in the PBX.'
+    }, {
+        name: 'voip.reg-timeout',
+        section: 'sip',
+        field: 'Registration',
+        label: 'Registration timeout',
+        placeholder: 'Seconds',
+        type: 'number',
+        defaultVal: 60,
+        min: 1,
+        max: 604800,
+        required: 1,
+        cb: 'sip',
+        info: 'Registration Timeout is the optional timeout for SIP account registration, in seconds. The default is 60, and the maximum is 604800 seconds, which is 7 days.'
+    }, {
+        name: 'voip.rereg-delay',
+        section: 'sip',
+        field: 'Registration',
+        label: 'Registration retry interval',
+        placeholder: 'Seconds',
+        type: 'number',
+        defaultVal: 300,
+        min: 1,
+        max: 604800,
+        cb: 'sip',
+        info: 'If SIP registration is unsuccessful, this field specified the time duration between retry attempts, in seconds. The minimum is 1, the default is 300 seconds, which is 5 minutes, and the max is 604800, which is 7 days.'
+    }, {
+        name: 'voip.use-timer',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'Use SIP session timers',
+        defaultVal: 1,
+        type: 'select',
+        values: [{
+            'val': 0,
+            'label': 'Inactive'
+        }, {
+            'val': 1,
+            'label': 'Optional'
+        }, {
+            'val': 2,
+            'label': 'Mandatory'
+        }, {
+            'val': 3,
+            'label': 'Always'
+        }],
+        cb: 'sip',
+        info: 'Specify the preference for using SIP session keep-alive timers. During a SIP session, if SIP session timers are active, the SIP User Agent (UA) periodically sends INVITE or UPDATE requests (also called refresh requests) to keep the SIP session alive. The interval and use of the keep-alive is determined at call negotiation. If one of the UAs in a call does not receive the refresh request within the expiration timeout period, it will terminate the session. The available options in the device are: Inactive – Session Timers will not be used in any session, except if explicitly required in the remote request. Optional – Session Timers will be used in all sessions whenever the remote supports and uses it. This option is the device default. Mandatory – Session Timers support will be a requirement for the remote to be able to establish a session. Always – Session Timers will always be used in all sessions, regardless of whether the remote supports or uses it or not.'
+    }, {
+        name: 'voip.timer-se',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'Session timers expiration',
+        placeholder: 'Seconds',
+        defaultVal: 1800,
+        min: 90,
+        max: 604800,
+        type: 'number',
+        show: 'voip.use-timer',
+        cb: 'sip',
+        info: 'The expiration period is the interval at which the device will consider the SIP session timed out if it does not receive a refresh message from the remote SIP device. At call negotiation, the nodes will negotiate the expiration period to be used for the session. If less than the session timers minimum expiration, then the session timer minimum expiration is used instead. It is measured in seconds; the default is 1800, it must be greater than 90, and the max is 604800, which is 7 days.'
+    }, {
+        name: 'voip.timer-min-se',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'Session timers min expiration',
+        placeholder: 'Seconds',
+        defaultVal: 90,
+        min: 90,
+        max: 604800,
+        type: 'number',
+        show: 'voip.use-timer',
+        cb: 'sip',
+        info: 'This is the minimum session timer expiration period that the device will accept when negotiating the expiration period with the remote SIP device. If the session timer expiration duration is less than this value, this value is used instead. It is measured in seconds; the default is 90, the max is 604800, which is 7 days.'
+    }, {
+        name: 'voip.use-100rel',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'Require reliable SIP provisional response',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'Select this option to implement reliable SIP provisional responses. By default the setting is unchecked. SIP is a request-response type of protocol with two types of responses: provisional and final. Final responses are sent reliably, using an ACK to ensure receipt. Provisional responses by default are not sent reliably and do not require an ACK; however, in some cases, such as for PSTN interoperability support, reliability of provisional types of responses is needed. Choose this option to add the PRACK (provisional ACK) message support for reliability.'
+    }, {
+        name: 'voip.auto-update-nat',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'Enable SIP traversal behind symmetric NAT',
+        defaultVal: 1,
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'This option may be used when the device is behind a symmetric NAT (Network Address Translation). When enabled, the device will keep track of the public IP address from the response of the REGISTER request. If it detects that the address has changed, it will unregister the current Contact, update the Contact with the transport address obtained from the Via header, and register a new Contact to the SIP registrar. This option will also update the public name of the UDP transport if STUN is configured. By default this is enabled.'
+    }, {
+        name: 'voip.no-refer-sub',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'Suppress SIP event subscription during call transfer',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'When transferring a SIP call, the SIP REFER process automatically establishes a temporary event subscription to notify the party initiating the transfer about the receiver’s status in handling the REFER. In some cases these event subscriptions and notifications are not needed, such as when forking is not used. Enable this option to suppress the automatic event subscriptions when transferring calls. The option is disabled by default. (See IETF RFC 4488.)'
+    }, {
+        name: 'voip.allow-strict',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'Allow strict routing',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'By default, proxies specified for SIP registration will be configured as loose-routing proxies. The loose-routing designation (\';lr\') will be automatically appended to each proxy address when the proxy is added to the SIP Route header. Older proxies may be strict-routing (see IETF RFC 2543), not supporting loose routing (see IETF RFC 3261). Enable this option if you are using strict-routing proxies. If this option is enabled and you are specifying one or more loose-routing proxies in the Proxy field, then you must manually add the \";lr\" suffix to each loose-routing proxy address. For example, \"10.134.123.101;lr\".'
+    }, {
+        name: 'voip.min-size',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'Minimize SIP message size',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'The SIP protocol specifies that header field names can be in the full name form or in the abbreviated form. Abbreviated form is useful when messages might be too large to be carried on the available transport, for example when exceeding UDP’s Maximum Transmission Unit (MTU). Enable this option to encode SIP headers in their short forms to reduce size. By default, the option is not enabled and SIP headers in outgoing messages will be encoded in their full names. (See SIP protocol standard, IETF RFC 3261.)'
+    }, {
+        name: 'voip.dtmf-method',
+        section: 'sip',
+        field: 'Configuration',
+        cb: 'sip',
+        label: 'DTMF signaling method',
+        type: 'select',
+        values: [{
+            'val': 0,
+            'label': 'RTP (RFC2833)'
+        }, {
+            'val': 1,
+            'label': 'SIP INFO'
+        }, {
+            'val': 2,
+            'label': 'Inband'
+        }],
+        info: 'Select the signaling method for transmitting DTMF tones, either via RTP (RFC2833), SIP INFO messages or in-band. The default is RTP.'
+    }, {
+        name: 'voip.dtmf-rtp-payload-type',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'DTMF RTP payload type',
+        defaultVal: 96,
+        type: 'range',
+        min: 96,
+        max: 127,
+        cb: 'sip',
+        info: 'Specify the dynamic payload type for DTMF RTP signaling. The range is 96 to 127, default value is 96.'
+    }, {
+        name: 'voip.media-onhold-method',
+        section: 'sip',
+        field: 'Configuration',
+        label: 'Media on-hold method',
+        type: 'select',
+        values: [{
+            'val': 0,
+            'label': 'M line only (RFC3264)'
+        }, {
+            'val': 1,
+            'label': 'M and C line (RFC2543)'
+        }],
+        cb: 'sip',
+        info: 'The Media on hold method setting allows switching the Media on Hold behavior between the different RFC definitions. \'M line only (RFC3264)\' implements the functionality according to RFC3264, and is the default. In the INVITE message SDP body, the attribute \'a=sendonly\' is set to a designated media stream to put media on-hold. \'M and C line (RFC2543)\' implements the functionality according to RFC2543. In the INVITE message SDP body, the connection line ip is set to \'0.0.0.0\' (e.g. \'c= IN IP4 0.0.0.0\'), and the attribute \'a=inactive\' is added.'
+    }, {
+        // Transport
+        name: 'voip.set-qos',
+        section: 'transport',
+        label: 'Enable QoS',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'Select this option to enable QoS (Quality of Service) tagging for SIP and media. For layer 3, at the Internet layer, the DiffServ (Differentiated Services) precedence level is Class 3. The Differentiated Services Code Point (DSCP) in the IP header is set to 24 (0x18). For layer 2, IEEE 802.1p tagging is supported. This option is unchecked by default.'
+    }, {
+        name: 'voip.udp-tcp-selection',
+        section: 'transport',
+        label: 'Enable TCP transport protocol',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'Select the transport that will be enabled for SIP messages. The options are TCP or UDP. The default is UDP if it is available.'
+    }, {
+        name: 'voip.local-port',
+        section: 'transport',
+        label: 'Local port',
+        defaultVal: 5060,
+        min: 1024,
+        max: 65535,
+        type: 'number',
+        cb: 'sip',
+        info: 'Specify the local port for SIP transport. The default is 5060 for UDP and TCP. (Both use the same port.) The range is 1024 to 65535.'
+    }, {
+        name: 'voip.use-srtp',
+        section: 'transport',
+        label: 'Enable SRTP',
+        type: 'select',
+        cb: 'sip',
+        values: [{
+            'val': 0,
+            'label': 'Disabled'
+        }, {
+            'val': 1,
+            'label': 'Optional'
+        }, {
+            'val': 2,
+            'label': 'Mandatory'
+        }],
+        info: 'Use this setting to control Secure Real-time Transport Protocol (SRTP) usage. These are the available options: Disabled – Do not use SRTP; always use RTP. This is the default setting. Optional – Use the optional disposition for SRTP in SDP. If the remote end supports SRTP, then use SRTP; otherwise, use RTP. Mandatory – Force use of SRTP. If the remote end does not support SRTP, the call does not connect.'
+    }, {
+        name: 'voip.rtp-port',
+        section: 'transport',
+        label: 'RTP port',
+        defaultVal: 4000,
+        min: 1024,
+        max: 65535,
+        type: 'number',
+        cb: 'sip',
+        info: 'This is the base port number for RTP. The default is 4000. RTP is originated and received on even port numbers, and the associated RTCP uses the next higher odd port number. The range is 1024 to 65535.'
+    }, {
+        name: 'voip.ip-addr',
+        section: 'transport',
+        label: 'SIP/RTP IP address',
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        cb: 'sip',
+        info: 'Optional. If specified, use this IP address (or hostname) as the advertised SIP and RTP address of this transport (the public address). The IP address does not have to correspond with one of the local host network interfaces; it may be the public IP address of a NAT router where port mappings have been configured for the SIP application.'
+    }, {
+        name: 'voip.stun-srv',
+        section: 'transport',
+        label: 'STUN server',
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        cb: 'sip',
+        info: 'Optional. Specify the STUN (Session Traversal Utilities for NAT) server to use to determine if the device is behind a NAT, the type of NAT, and the public address of the device. The field can contain a comma separated list of servers. Each server can be a domain name, host name, or IP address, and it may contain an optional port number. (For STUN see IETF RFC 5389.)'
+    }, {
+        name: 'voip.use-ice',
+        section: 'transport',
+        field: 'ICE',
+        label: 'Enable ICE',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'Check this option to use the ICE (Interactive Connectivity Establishment) protocol for NAT traversal. This option is unchecked by default. ICE takes advantage of STUN and TURN to identify candidates (IP addresses and ports) for communication, evaluating and prioritizing the candidate pairs to select the best route. Expensive candidates, such as using a media relay, are selected only as a last resort. (For ICE see IETF RFC 5245.)'
+    }, {
+        name: 'voip.ice-regular',
+        section: 'transport',
+        field: 'ICE',
+        label: 'Enable aggressive ICE nomination',
+        defaultVal: 1,
+        show: 'voip.use-ice',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'When using ICE, select the preferred ICE Nomination Method. To validate candidate pairs (IP addresses and ports for the local and remote nodes), the device sends STUN binding requests as part of the media connectivity tests. When a candidate is nominated for use, a STUN binding request is sent with a flag indicating that the candidate pair is nominated. There are two nomination methods that can be used: Regular – For Regular Nomination, the device validates candidate pairs with initial STUN binding requests, and then selects a valid candidate pair by sending another STUN binding request with a flag indicating that the pair is nominated. Aggressive – For Aggressive Nomination, the device doesn’t wait to set the nominated flag in a second STUN binding request, but rather sets the flag in the STUN binding requests for all of the candidate pairs. The ICE processing completes when the first pair successfully passes connectivity checks. The aggressive method is faster but does not always result in the optimal path being selected. This is the default method.'
+    }, {
+        name: 'voip.ice-no-rtcp',
+        section: 'transport',
+        field: 'ICE',
+        label: 'Disable RTCP',
+        show: 'voip.use-ice',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'Select this option to disable the RTCP component in ICE. This is unchecked by default.'
+    }, {
+        name: 'voip.ice-max-hosts',
+        section: 'transport',
+        field: 'ICE',
+        label: 'Max allowed ICE host candidates',
+        defaultVal: 5,
+        min: 0,
+        max: 10,
+        show: 'voip.use-ice',
+        type: 'number',
+        cb: 'sip',
+        info: 'An ICE host candidate is an actual local transport address in the host. Host transport addresses are obtained by binding to attached network interfaces. These interfaces include both physical interfaces and virtual interfaces such as VPN. This option specifies the maximum number of local ICE host candidates that may be used in evaluating candidate pairs when determining the best route. The default value is 5. The range is 0 to 10. 0 indicates that there is no maximum.'
+    }, {
+        name: 'voip.use-turn',
+        section: 'transport',
+        field: 'TURN',
+        label: 'Enable TURN relay',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'Select this option to enable the use of a TURN (Traversal Using Relay NAT) relay when using ICE. A TURN relay is a media relay server residing on the public internet which can relay media data packet between clients. TURN relays are used when other preferred mechanisms are not available, such as STUN or direct connectivity. The option is unchecked by default. If TURN is enabled, the TURN settings below (server, username and password) must also be specified.'
+    }, {
+        name: 'voip.turn-srv',
+        section: 'transport',
+        field: 'TURN',
+        label: 'TURN server',
+        show: 'voip.use-turn',
+        required: 1,
+        type: 'ipAddress',
+        placeholder: 'IP Address',
+        cb: 'sip',
+        info: 'Specify the TURN server domain name or hostname. The format is either \'DOMAIN:PORT\' or \'HOST:PORT\''
+    }, {
+        name: 'voip.turn-tcp',
+        section: 'transport',
+        field: 'TURN',
+        label: 'Use TCP connection to TURN server',
+        show: 'voip.use-turn',
+        type: 'checkbox',
+        cb: 'sip',
+        info: 'Use TCP to communicate with the TURN server rather than UDP.'
+    }, {
+        name: 'voip.turn-user',
+        section: 'transport',
+        field: 'TURN',
+        label: 'TURN username',
+        show: 'voip.use-turn',
+        required: 1,
+        type: 'text',
+        cb: 'sip',
+        info: 'Specify the username to authenticate against the TURN server.'
+    }, {
+        name: 'voip.turn-passwd',
+        section: 'transport',
+        field: 'TURN',
+        label: 'TURN password',
+        show: 'voip.use-turn',
+        required: 1,
+        type: 'password',
+        cb: 'sip',
+        info: 'Specify the password to authenticate against the TURN server.'
+    }, {
+        // Tools
+        name: 'sys.verbose-log-enabled',
+        label: 'Enable verbose logging',
+        type: 'checkbox'
+    }, {
+        name: 'sys.voip-capable',
+        type: 'number'
+    }
+];
+var dstValues = [{
+    label: 'Month',
+    vals: [{
+        'val': '1',
+        'label': 'January'
+    }, {
+        'val': '2',
+        'label': 'February'
+    }, {
+        'val': '3',
+        'label': 'March'
+    }, {
+        'val': '4',
+        'label': 'April'
+    }, {
+        'val': '5',
+        'label': 'May'
+    }, {
+        'val': '6',
+        'label': 'June'
+    }, {
+        'val': '7',
+        'label': 'July'
+    }, {
+        'val': '8',
+        'label': 'August'
+    }, {
+        'val': '9',
+        'label': 'September'
+    }, {
+        'val': '10',
+        'label': 'October'
+    }, {
+        'val': '11',
+        'label': 'November'
+    }, {
+        'val': '12',
+        'label': 'December'
+    }]
+}, {
+    label: 'Week',
+    vals: [{
+        'val': '1',
+        'label': 'First'
+    }, {
+        'val': '2',
+        'label': 'Second'
+    }, {
+        'val': '3',
+        'label': 'Third'
+    }, {
+        'val': '4',
+        'label': 'Fourth'
+    }, {
+        'val': '5',
+        'label': 'Last'
+    }]
+}, {
+    label: 'Day',
+    vals: [{
+        'val': '1',
+        'label': 'Sunday'
+    }, {
+        'val': '2',
+        'label': 'Monday'
+    }, {
+        'val': '3',
+        'label': 'Tuesday'
+    }, {
+        'val': '4',
+        'label': 'Wednesday'
+    }, {
+        'val': '5',
+        'label': 'Thursday'
+    }, {
+        'val': '6',
+        'label': 'Friday'
+    }, {
+        'val': '7',
+        'label': 'Saturday'
+    }]
+}];
+var dstHours = [{
+    'val': '0',
+    'label': '12 AM',
+    'alt': '00:00'
+}, {
+    'val': '1',
+    'label': '1 AM',
+    'alt': '01:00'
+}, {
+    'val': '2',
+    'label': '2 AM',
+    'alt': '02:00'
+}, {
+    'val': '3',
+    'label': '3 AM',
+    'alt': '03:00'
+}, {
+    'val': '4',
+    'label': '4 AM',
+    'alt': '04:00'
+}, {
+    'val': '5',
+    'label': '5 AM',
+    'alt': '05:00'
+}, {
+    'val': '6',
+    'label': '6 AM',
+    'alt': '06:00'
+}, {
+    'val': '7',
+    'label': '7 AM',
+    'alt': '07:00'
+}, {
+    'val': '8',
+    'label': '8 AM',
+    'alt': '08:00'
+}, {
+    'val': '9',
+    'label': '9 AM',
+    'alt': '09:00'
+}, {
+    'val': '10',
+    'label': '10 AM',
+    'alt': '10:00'
+}, {
+    'val': '11',
+    'label': '11 AM',
+    'alt': '11:00'
+}, {
+    'val': '12',
+    'label': '12 PM',
+    'alt': '12:00'
+}, {
+    'val': '13',
+    'label': '1 PM',
+    'alt': '13:00'
+}, {
+    'val': '14',
+    'label': '2 PM',
+    'alt': '14:00'
+}, {
+    'val': '15',
+    'label': '3 PM',
+    'alt': '15:00'
+}, {
+    'val': '16',
+    'label': '4 PM',
+    'alt': '16:00'
+}, {
+    'val': '17',
+    'label': '5 PM',
+    'alt': '17:00'
+}, {
+    'val': '18',
+    'label': '6 PM',
+    'alt': '18:00'
+}, {
+    'val': '19',
+    'label': '7 PM',
+    'alt': '19:00'
+}, {
+    'val': '20',
+    'label': '8 PM',
+    'alt': '20:00'
+}, {
+    'val': '21',
+    'label': '9 PM',
+    'alt': '21:00'
+}, {
+    'val': '22',
+    'label': '10 PM',
+    'alt': '22:00'
+}, {
+    'val': '23',
+    'label': '11 PM',
+    'alt': '23:00'
+}];
+
+
+angular.module('r1kApp').run(['$templateCache', function($templateCache) {
+  'use strict';
+
+  $templateCache.put('app/diag/diag.html',
+    "<div class=\"childState diag columns small-12\"><div class=diagForm ng-repeat=\"form in forms\"><h4>{{form.title}}</h4><div class=\"formItem row\"><div class=\"columns small-12\"><div class=\"columns small-12 medium-8 large-9\" ng-switch on=form.type><label ng-switch-when=form ng-bind-html=form.info></label><md-input-container ng-switch-when=input class=\"columns small-12\"><label>{{form.label}}</label><input ng-model=diag[form.cmd] name={{form.cmd}} ng-required=1></md-input-container></div><div class=\"columns small-12 medium-4 large-3\"><md-button class=\"md-raised md-primary\" aria-label=Submit ng-click=submitForm(form.cmd)>Enter Command</md-button></div></div></div></div></div>"
+  );
+
+
+  $templateCache.put('app/home/home.html',
+    "<div class=\"childState home columns small-12\"><div ng-repeat=\"(k, v) in squares\" ng-class=\"$even ? 'large-offset-1' : 'end'\" class=\"homeSquares columns small-12 medium-6 large-5\"><h4 ng-if=\"(v.show == undefined || v.show != undefined && v.show == true)\">{{k}} Status</h4><div class=sysData ng-if=\"(v.show == undefined || v.show != undefined && v.show == true)\"><div ng-repeat=\"data in componentStatus | filter:{cat: k}\" ng-switch on=data.type ng-if=\"(data.show == undefined || data.show != undefined && data.show == true)\"><div ng-switch-when=btn><md-button class=\"md-raised md-primary\" aria-label={{data.label}} ng-click=deviceCmd(data.prop)>{{data.label}}</md-button></div><div ng-switch-when=upgrade><h5><strong>{{data.label}}</strong>: {{currentSettings[data.val] == 'unknown' ? upStr(currentSettings[data.prop]) : upStr(currentSettings[data.val])}}</h5></div><div ng-switch-default><h5><strong>{{data.label}}</strong>: {{upStr(currentSettings[data.prop])}}</h5></div></div></div></div><div class=\"homeSquares columns small-12 large-10 large-offset-1 end\" ng-if=\"isBt \"><h4 ng-switch on=btUpgrade>Bluetooth Status <span ng-switch-when=false classname=compStatus>{{upStr(btStatus)}}</span> <span ng-switch-when=true class=btProgress>Updating<md-progress-circular md-mode=determinate md-diameter=36 ng-value=btPct></md-progress-circular><span id=pct>{{btPct}}</span></span></h4><div class=sysData><div ng-repeat=\"data in btData\" ng-switch on=data.type ng-if=\"(data.show == undefined || data.show != undefined && data.show == true)\"><div ng-switch-when=btnlist class=btnlist><div class=pairListHeader><h5>{{data.label}}</h5><span>MAC Address</span><md-button class=\"md-raised md-primary\" aria-label=\"Unpair all Devices\" ng-click=\"deviceCmd('bt.bt-unpair', 'all')\" ng-if=btPaired>Unpair all Devices</md-button><md-button class=\"md-raised md-primary\" aria-label={{pairLabel}} ng-click=pairButton(1)>{{pairLabel}}</md-button></div><ul class=pairList ng-switch on=btPaired><li class=pairItem ng-repeat=\"phone in btPhones\" ng-switch-when=true><span class=phoneName><strong>{{phone[1]}}</strong></span> <span class=phoneMac>{{phone[0]}}</span><md-button ng-repeat=\"button in data.btns\" ng-if=\"(button.conn == undefined) || (button.conn == true && phone[2])\" class=\"md-raised md-primary\" aria-label={{button.label}} ng-click=\"deviceCmd(button.cmd, button.mac ? phone[0] : undefined)\">{{button.label}}</md-button></li><li class=\"pairItem noPhones\" ng-switch-when=false>No phones have been paired. Click the 'Pair' button to pair a phone.</li></ul></div><div ng-switch-default><h5><strong>{{data.label}}</strong>: {{currentSettings[data.prop] || 'None'}}</h5></div></div></div></div><div class=\"homeSquares columns small-12 large-10 large-offset-1 end\" ng-if=\"isBle \"><h4 ng-switch on=btUpgrade>BLE Status <span ng-switch-when=false classname=compStatus>{{upStr(bleStatus)}}</span> <span ng-switch-when=true class=bleProgress>Updating<md-progress-circular md-mode=determinate md-diameter=36 ng-value=btPct></md-progress-circular><span id=pct>{{btPct}}</span></span></h4><div class=sysData><div ng-repeat=\"data in bleData\" ng-switch on=data.type ng-if=\"(data.show == undefined || data.show != undefined && data.show == true)\"></div></div></div></div><!-- <div class=\"childState home columns small-12\">\n" +
+    "\t<div class=\"columns small-12 medium-6 large-5 large-offset-1\">\n" +
+    "\t\t<h4>System Information</h4>\n" +
+    "\t\t<div class=\"sysData\">\n" +
+    "\t\t\t<div ng-repeat=\"(k,v) in deviceData\"><h5><strong>{{v}}</strong>: {{currentSettings[k]}}</h5></div>\n" +
+    "\t\t\t<md-button class=\"md-raised md-primary\" aria-label=\"Restart\" ng-click=\"restart()\">Restart Device</md-button>\n" +
+    "\t\t</div>\n" +
+    "\t</div>\n" +
+    "\t<div class=\"columns small-12 medium-6 large-5 end\">\n" +
+    "\t\t<h4>Call Status</h4>\n" +
+    "\t\t<div class=\"sysData\">\n" +
+    "\t\t\t<div ng-repeat=\"(k,v) in callData\"><h5><strong>{{v.label}}</strong>: {{currentSettings[v.prop]||'Disabled'}}</h5></div>\n" +
+    "\t\t</div>\n" +
+    "\t</div>\n" +
+    "</div> -->"
+  );
+
+
+  $templateCache.put('app/login/login.html',
+    "<div class=\"loginContainer columns small-10 medium-6 large-4 xlarge-3 xxlarge-2 small-centered\"><div class=revoLogo><img src=../assets/images/yamaha.png alt=Revolabs></div><form name=loginForm class=\"loginWrap row\" novalidate ng-submit=login()><div class=loginForm><h3 class=\"productTitle text-center\">CS-700 {{productTitle}}</h3><h5 class=loginTitle>Login:</h5><div ng-messages=auth.error><small class=error ng-message=required>You must enter a password.</small> <small class=error ng-message=noAuth>The password you entered is incorrect. Please try again.</small> <small class=error ng-message=noDevice>Unable to communicate with the device. Please ensure that it is connected to the network and powered on.</small> <small class=error ng-message=timedOut>Your session timed out. Please log in again.</small></div><md-input-container><label>Password</label><input type=password aria-label=Password ng-model=token ng-change=maskPass(token) name=password ng-paste=$event.preventDefault() required autofocus></md-input-container><div class=\"formWrap row\"><div class=\"columns small-12 medium-8 large-8\"><md-checkbox aria-label=\"Stay logged in\" ng-model=auth.saveSession name=\"Save session\" ng-checked={{auth.saveSession}} ng-true-value=1 ng-false-value=0><label for=\"Save session\">Stay logged in</label></md-checkbox></div><div class=\"columns small-12 medium-4 large-4\"><md-button class=\"md-raised md-primary\" aria-label=Login>Login</md-button></div></div></div></form></div>"
+  );
+
+
+  $templateCache.put('app/main/main.html',
+    "<div class=menu-stripe></div><div class=\"mainDashboard columns small-centered small-12 large-10 xlarge-8\"><div class=\"topNav row\"><div class=\"topBar columns small-centered small-12 large-10 xlarge-8\"><div class=\"revoLogo columns small-4 medium-3 large-2\"><a href ui-sref=main.home><img class=small-hide src=../assets/images/yamaha.png alt=Yamaha><img class=\"small-show iconLogo\" src=../assets/images/yamaha_icon.png alt=Yamaha></a></div><div class=\"productHeader columns small-4 medium-6 large-8\"><h3 class=productTitle>{{productTitle}} <span class=small-hide>Device Manager</span></h3></div><section class=\"logout columns small-4 medium-3 large-2\"><a href ng-click=logout()><span class=small-hide>Logout</span> <span class=icon>&#xe692;</span></a></section></div><div class=\"primaryNav columns small-12\" show-menu><nav class=\"mainNav columns small-10 medium-6 xlarge-4 small-centered\"><a class=\"columns small-4\" show-sub-menu ui-sref=main.home ui-sref-active=activeView ng-class=isDiag><span class=icon>&#xe68b;</span><span class=sectionTitle>Home</span></a> <a class=\"columns small-4\" show-sub-menu ui-sref=main.settings.settingsForm ui-sref-active=activeView><span class=icon>&#xe68a;</span><span class=sectionTitle>Settings</span></a> <a class=\"columns small-4\" show-sub-menu ui-sref=main.tools ui-sref-active=activeView><span class=icon>&#xe610;</span><span class=sectionTitle>Tools</span></a></nav><nav class=\"mainSubNav columns small-12 small-centered\"><ul sub-menu=main.settings.settingsForm class=small-block-grid-{{settingsMenu}}><li ng-repeat=\"section in settingsSections | orderBy:'+'\"><a ui-sref=\"main.settings.settingsForm({sectionId: section})\" sub-menu-param ui-sref-active=activeView><h6>{{section==='sip'?'SIP':section}}</h6></a></li></ul></nav><nav class=\"mainSubNav columns small-12 large-10 xlarge-8 small-centered\"><ul sub-menu=main.tools class=small-block-grid-{{toolsMenu}}><li ng-repeat=\"(key, tool) in tools\" ng-if=tool.menu><a ui-sref=\"main.tools({toolID: key})\" sub-menu-param ui-sref-active=activeView><h6>{{tool.menu}}</h6></a></li></ul></nav></div></div><div ui-view class=\"dashContent columns small-12\"></div><div class=\"footer columns small-12\"><p>CS-700 Device Manager &copy; Yamaha 2018. All rights reserved.</p></div></div>"
+  );
+
+
+  $templateCache.put('app/settings/settingsForm/settingsForm.html',
+    "<form class=\"childState formGroup columns small-12\" novalidate name=configForm autocomplete=off><ul class=\"childState-toolBar columns small-centered small-12\"><li><md-button class=\"md-raised md-primary\" aria-label=Submit ng-if=showSubmitButton ng-disabled=configForm.$pristine ng-click=submitProps()>Submit</md-button></li></ul><h4 ng-repeat-start=\"fields in vfields\" ng-if=\"fields != 0\">{{fields}} Settings</h4><div class=\"formItem row\" ng-repeat=\"input in formData | filter:{section: currentSection, field: fields}\" ng-switch on=input.type ng-repeat-end ng-if=\"(input.show === undefined && input.subOpt.id === undefined) || (input.subOpt.id === undefined && currentSettings[input.show]) || (((input.show === undefined && input.subOpt.parent === undefined) || currentSettings[input.subOpt.parent]) && (currentSettings[input.subOpt.id] === input.subOpt.val))\"><ng-form ng-switch-when=checkbox class=\"checkbox columns small-12\"><md-checkbox ng-model=currentSettings[input.name] name={{input.name}} ng-checked={{currentSettings[input.name]}} ng-true-value=1 ng-false-value=0><label for={{input.name}}>{{input.label}} <a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></label></md-checkbox></ng-form><ng-form ng-switch-when=addCheckbox class=\"checkbox columns small-12\" add><md-checkbox ng-repeat=\"(val, label) in input.values\" ng-model=currentSettings[input.name] name={{input.name}} add-total={{val}} ng-true-value=1 ng-false-value=0><label for={{label}}>{{label}} <a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></label></md-checkbox></ng-form><ng-form ng-switch-when=range class=\"range columns small-10 medium-10 large-8 xlarge-6\" name=$index><label for={{input.name}} class=row>{{input.label}} <a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></label><div class=row><div class=\"columns small-11 medium-9\"><md-slider aria-label={{input.label}} ng-if=\"input.step > 0\" md-discrete ng-model=currentSettings[input.name] step=\"{{input.step || 1}}\" min=\"{{input.min || 0}}\" max=\"{{input.max || 10}}\"></md-slider><md-slider aria-label={{input.label}} ng-if=!input.step ng-model=currentSettings[input.name] min=\"{{input.min || 0}}\" max=\"{{input.max || 10}}\"></md-slider></div><div class=\"columns small-12 medium-3\"><md-input-container><input type=number ng-model=currentSettings[input.name] name={{input.name}} min=\"{{input.min || 0}}\" max=\"{{input.max || 10}}\" check-step={{input.step}} step={{input.step}} sng-required=true ng-model-options=\"{ debounce: { 'blur': 100 } }\"></md-input-container></div><div ng-messages=$index[input.name].$error class=\"columns small-12 error\"><small ng-message=required>This field is required.</small> <small ng-message=number>Please enter a positive number.</small> <small ng-message=min>Please enter a number greater than or equal to {{input.min || 0}}.</small> <small ng-message=max>Please enter a number less than or equal to {{input.max || 10}}.</small> <small ng-message=check>Please enter a multiple of {{input.step}}.</small></div></div></ng-form><ng-form ng-switch-when=sortable class=\"sortable columns small-12 medium-9 large-7 xlarge-5\"><label for={{input.name}}>{{input.label}} <a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></label><div ng-repeat=\"sorter in currentSettings[input.name]\" class={{sorter.name}}><label>{{sorter.name}}</label><div ng-messages=sortableErr class=error ng-if=\"$index == 0\"><small class=error ng-message=na>There must be at least one codec enabled.</small></div><div as-sortable=dndSort class=\"dndSorter {{sorter.req?'required':''}}\" ng-model=sorter.props><div ng-repeat=\"item in sorter.props\" as-sortable-item><span class=sort-handle as-sortable-item-handle><h6>{{item.label}}</h6></span></div></div></div></ng-form><ng-form ng-switch-when=DST class=\"dst columns small-12 large-10 xlarge-8\" name=$index><label for={{input.name}}>{{input.label}} <a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></label><div class=row><label for={{input.name}} ng-repeat=\"(k, v) in dst\" class=\"columns small-12 medium-3\">{{v.label}}<select format-array=: index={{$index}} ng-model=currentSettings[input.name] name={{input.name}} ng-options=\"opt.val as opt.label for opt in v.vals\"></select></label><label for={{input.name}} class=\"columns small-12 medium-3\">Hour<select format-array=: index=3 ng-model=currentSettings[input.name] name={{input.name}} ng-options=\"opt.val as (currentSettings['sys.twenty-four-hour-time']==0?opt.label:opt.alt) for opt in dstHours\"></select></label></div></ng-form><ng-form ng-switch-when=multiNumber class=\"multiNum columns small-12 large-10 xlarge-8\" name=$index><label for={{input.name}}>{{input.label}} <a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></label><div class=row><md-input-container ng-repeat=\"(k, v) in input.values\" ng-switch=input.dataType class=\"columns small-12 medium-4\"><label>{{v.label}}</label><input disabled ng-switch-when=array format-array output=num index={{$index}} ng-model=currentSettings[input.name] name={{input.name}} ng-required=\"{{input.required == 1}}\" ng-model-options=\"{ allowInvalid: true }\"> <input disabled ng-switch-when=int ng-model=currentSettings[v.name] name={{v.name}} ng-required=\"{{input.required == 1}}\" ng-model-options=\"{ allowInvalid: true }\"></md-input-container></div></ng-form><ng-form ng-switch-when=select class=\"columns small-12 medium-10 large-8 xlarge-6\"><label for={{input.name}}>{{input.label}}</label><select id={{input.name}} class=\"columns small-10 large-11\" ng-model=currentSettings[input.name] name={{input.name}} ng-options=\"opt.val as opt.label for opt in input.values\"></select><div class=\"columns small-2 large-1\"><a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></div></ng-form><ng-form ng-switch-when=tmp class=\"columns small-12 medium-10 large-8 xlarge-6\"><label for={{input.name}}>{{input.label}}</label><select ng-model=currentSettings[input.name] ng-change=\"deviceCmd('cam.camera-flicker', currentSettings[input.name])\" id={{input.name}} class=\"columns small-10 large-11\" name={{input.name}} data-ng-options=\"opt.val as opt.label for opt in input.values\"></select><div class=\"columns small-2 large-1\"><a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></div></ng-form><ng-form ng-switch-when=password class=\"pad columns small-12 medium-10 large-8 xlarge-6\" name=$index><!-- Hidden fields prevent autocomplete in firefox --><input style=display:none> <input type=password style=display:none><md-input-container class=\"columns small-10 large-11\"><label>{{input.label}}</label><input type=password ng-model=currentSettings[input.name] name={{input.name}} ng-required=\"{{input.required == 1}}\" ng-pattern=input.pattern hash-pass={{input.hash}} autocomplete=off><div ng-messages=$index[input.name].$error><small ng-message=required>This field is required.</small> <small ng-message=pattern>The password must be at least 4 characters.</small></div></md-input-container><div class=\"columns small-2 large-1 end\"><a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></div><md-input-container class=\"columns small-10 large-11 end\" ng-if=\"input.name == 'sys.md5-password' && $index[input.name].$dirty && $index[input.name].$valid \"><label>Confirm new password</label><input type=password ng-model=confirm name=confirm match-to=currentSettings[input.name] hash-pass={{input.hash}} ng-model-options=\"{ debounce: { 'default': 500 } }\" required autocomplete=off><div ng-messages=$index.confirm.$error><small ng-message=required>This field is required.</small> <small ng-message=match>The values do not match.</small></div></md-input-container></ng-form><ng-form ng-switch-when=telnet-password class=\"pad columns small-12 medium-10 large-8 xlarge-6\" name=$index><!-- Hidden fields prevent autocomplete in firefox --><input style=display:none> <input type=password style=display:none><md-input-container class=\"columns small-10 large-11\"><label>{{input.label}}</label><input type=password ng-model=currentSettings[input.name] name={{input.name}} ng-required=\"{{input.required == 1}}\" ng-pattern=input.pattern autocomplete=off><div ng-messages=$index[input.name].$error><small ng-message=required>This field is required.</small> <small ng-message=pattern>The password must be at least 4 characters.</small></div></md-input-container><div class=\"columns small-2 large-1 end\"><a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></div><md-input-container class=\"columns small-10 large-11 end\" ng-if=\"input.name == 'sys.telnet-password' && $index[input.name].$dirty && $index[input.name].$valid \"><label>Confirm new password</label><input type=password ng-model=confirm name=confirm match-to=currentSettings[input.name] required autocomplete=off><div ng-messages=$index.confirm.$error><small ng-message=required>This field is required.</small> <small ng-message=match>The values do not match.</small></div></md-input-container></ng-form><ng-form ng-switch-when=number class=\"pad columns small-12 medium-10 large-8 xlarge-6\" name=$index><md-input-container class=\"columns small-10 large-11\"><label>{{input.label}}</label><input type=number ng-model=currentSettings[input.name] name={{input.name}} ng-required=\"{{input.required == 1}}\" min=\"{{input.min || 0}}\" max=\"{{input.max || 604800}}\" ng-model-options=\"{ debounce: { 'blur': 100} }\"><div ng-messages=$index[input.name].$error><small ng-message=required>This field is required.</small> <small ng-message=number>Please enter a positive number.</small> <small ng-message=min>Please enter a number greater than or equal to {{input.min || 0}}.</small> <small ng-message=max>Please enter a number less than or equal to {{input.max || 604800}}.</small></div></md-input-container><div class=\"columns small-2 large-1\"><a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></div></ng-form><ng-form ng-switch-when=textarea class=\"pad columns small-12 medium-10 large-8 xlarge-6\" name=$index><md-input-container class=\"columns small-10 large-11\"><label>{{input.label}}</label><textarea ng-model=currentSettings[input.name] name={{input.name}} columns=1 ng-required=\"{{input.required == 1}}\"></textarea><div ng-messages=$index[input.name].$error><small ng-message=required>This field is required.</small></div></md-input-container><div class=\"columns small-2 large-1\"><a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></div></ng-form><ng-form ng-switch-when=upload class=\"checkbox upload columns small-12\"><md-checkbox aria-label={{input.name}} disabled ng-model=currentSettings[input.name] has-value><label for={{input.name}}>{{input.label}} <a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></label></md-checkbox><md-button class=\"md-raised md-primary\" aria-label=\"Upload Certificate\" ng-click=\"uploadDialog($event, input.req, input.name)\">Upload Certificate</md-button></ng-form><ng-form ng-switch-when=btn class=\"upload columns small-12\"><md-button class=\"md-raised md-primary\" aria-label={{input.label}} ng-click=deviceCmd(input.name)>{{input.label}}</md-button><a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></ng-form><ng-form ng-switch-when=ipAddress class=\"pad columns small-12 medium-10 large-8 xlarge-6\" name=$index><md-input-container class=\"columns small-10 large-11\"><label>{{input.label}}</label><input ng-model=currentSettings[input.name] name={{input.name}} ng-required=\"{{input.required == 1}}\" ng-pattern=\"/((?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{0,62}[a-zA-Z0-9]\\.)+[a-zA-Z]{2,63}$)|^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)/\" input-disabled=currentSettings[input.disabled]><div ng-messages=$index[input.name].$error><small ng-message=required>This field is required.</small> <small ng-message=pattern>Please enter a valid IP address or domain name.</small></div></md-input-container><div class=\"columns small-2 large-1\"><a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></div></ng-form><ng-form ng-switch-default class=\"pad columns small-12 medium-10 large-8 xlarge-6\" name=$index><md-input-container class=\"columns small-10 large-11\"><label>{{input.label}}</label><input ng-model=currentSettings[input.name] name={{input.name}} ng-required=\"{{input.required == 1}}\" ng-pattern=input.pattern input-disabled=currentSettings[input.disabled]><div ng-messages=$index[input.name].$error><small ng-message=required>This field is required.</small> <small ng-message=pattern>{{input.patternMsg}}</small></div></md-input-container><div class=\"columns small-2 large-1\"><a aria-haspopup=true tabindex=-1 class=\"has-tip icon\" tooltip-placement=top tooltip-append-to-body=true tooltip={{input.info}} ng-if=\"input.info != undefined\">&#xe681;</a></div></ng-form><md-divider ng-if=!$first class=mdDivider></md-divider></div></form>"
+  );
+
+
+  $templateCache.put('app/tools/tools.html',
+    "<div class=\"childState tool columns small-12\"><div class=toolForm ng-repeat=\"form in forms\"><h4 ng-if=\"forms.length > 1 && form.submitLabel && form.title != false\">{{form.submitLabel}}</h4><md-divider ng-if=\"$last && !form.submitLabel\" class=mdDivider></md-divider><div class=\"formItem row\" ng-repeat=\"(key, input) in form.input\" ng-switch on=input.type><div ng-switch-when=form class=\"columns small-12\"><form method=POST action={{submitForm(input.reqType)}} name=export><div class=\"columns small-12 medium-8 large-9\"><label>{{input.info}}</label></div><div class=\"columns small-12 medium-4 large-3\"><md-button class=\"md-raised md-primary\" aria-label=Submit>{{form.submitLabel}}</md-button></div></form></div><div ng-switch-when=file class=\"columns small-12\"><div class=\"columns small-12\"><div class=uploadArea ng-class=fileInfo.state ng-file-drop ng-file-select ng-model=bundle ng-file-change=\"dropFile($files, input.accept)\" allow-dir=false allow-multiple=false><div><span class=inputDesc>Drag and drop or click here to select a file</span> <span class=fileName ng-if=\"fileInfo.state != ''\">{{fileInfo.bundle.name}}</span> <span class=uploadError ng-if=\"fileInfo.errMsg != ''\">{{fileInfo.errMsg}}</span> <span class=info ng-if=\"input.info != '' && fileInfo.errMsg != ''\">{{input.info}}</span></div></div></div><div class=\"columns small-12 medium-4 large-3\" ng-if=!dialog><md-button class=\"md-raised md-primary submitFile\" aria-label=Submit value={{form.submitLabel}} ng-disabled=fileInfo.noSubmit ng-click=updateFirmware(input.reqType)>{{form.submitLabel}}</md-button></div><div class=\"columns small-12\" ng-if=dialog><md-button class=\"md-raised submitFile\" aria-label=Cancel value=Cancel ng-click=closeDialog()>Cancel</md-button><md-button class=\"md-raised md-primary submitFile\" aria-label=Submit value={{form.submitLabel}} ng-disabled=fileInfo.noSubmit ng-click=updateFirmware(input.reqType)>{{form.submitLabel}}</md-button></div></div><div ng-switch-when=checkbox class=\"columns small-12\"><div class=\"columns small-12 medium-8 large-9\"><md-checkbox ng-model=currentSettings[key] ng-class=\"form.title == false?'no-title':''\" name={{key}} aria-label={{input.label}} ng-checked={{currentSettings[key]}} ng-true-value=1 ng-false-value=0><label for={{key}}>{{input.label}}</label></md-checkbox></div><div class=\"columns small-12 medium-4 large-3\"><md-button class=\"md-raised md-primary\" aria-label=Submit ng-click=updateSettings(newSettings)>{{form.submitLabel}}</md-button></div></div><div ng-switch-when=array class=\"array columns small-12\"><ng-form class=\"columns small-12 medium-8 large-9\"><md-checkbox ng-repeat=\"(val, label) in input.values\" ng-change=resetDefaults(key) ng-model=resets[val] name={{val}} aria-label={{label}} ng-true-value=1 ng-false-value=0><label for={{val}}>{{label}}</label></md-checkbox></ng-form><div class=\"columns small-12 medium-4 large-3\"><md-button class=\"md-raised md-primary\" aria-label=Submit value={{form.submitLabel}} ng-disabled=!currentSettings[key].length ng-click=\"updateSettings(newSettings, true, cb)\">{{form.submitLabel}}</md-button></div></div></div></div></div>"
+  );
+
+}]);
+

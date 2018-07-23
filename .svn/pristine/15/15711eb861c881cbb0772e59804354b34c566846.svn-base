@@ -1,0 +1,122 @@
+'use strict'
+
+angular.module 'r1kApp'
+.controller 'MainCtrl', ($scope, loadSettings, Device, $state, $stateParams, Auth, $mdDialog, $mdToast, $window) ->
+	Auth.watch()
+	$scope.logout = () ->
+		Auth.logout()
+	vals = loadSettings()
+	deviceConfig = vals.currentSettings
+	$scope.isLogin = 'appBackground'
+	$scope.settingsSections = vals.settingsSections
+	$scope.productTitle = deviceConfig["sys.product"]
+	$scope.formData = formData
+	$scope.currentSettings = angular.copy(deviceConfig)
+	$scope.tools = tools
+	$scope.isDiag = if $state.current.url is 'diag' then 'activeView' else ''
+	# $scope.currentSettings['sys.voip-capable'] = 1
+	$scope.isVoip = ~~$scope.currentSettings['sys.voip-capable']
+	$scope.voipOnly = ['calls', 'sip', 'transport']
+	$scope.toolsMenu = 0
+	if !$scope.isVoip
+		$scope.settingsSections = []
+		angular.forEach vals.settingsSections, (v) ->
+			if $scope.voipOnly.indexOf(v) == -1 then $scope.settingsSections.push v
+	angular.forEach $scope.tools, (v, k) ->
+		if ((v.menu && v.show) && !$scope.currentSettings[v.show]) then v.menu = undefined
+		if v.menu then $scope.toolsMenu++
+	$scope.settingsMenu = $scope.settingsSections.length
+	$scope.deviceCmd = (cmd, val) ->
+		if val isnt undefined
+			$scope.currentSettings[cmd] = val
+		$scope.updateSettings([cmd], true)
+	$scope.resetCurrentVal = (x) ->
+		deviceConfig[x]
+	$scope.buildToast = (msg, warn) ->
+		toast =
+			template: '<md-toast'+(if warn then ' class="md-warn"' else '')+'>'+msg+'</md-toast>'
+			position: 'right'
+			parent: '.childState'
+		$mdToast.show(toast)
+	$scope.updateSettings = (a, b, c, d) ->
+		arr = checkNewValue(a, b, c)
+		updateData = arr[0]
+		confirmMsg = arr[1]
+		confirm = ''
+		msg =
+			'reboot': 'Performing this action requires rebooting the device. Would you like to continue?'
+			'reset': 'Performing this action will reset all device settings back to factory default and requires rebooting the device. Would you like to continue?'
+			'recents': 'Would you like to clear the recent call list?'
+			'bt': 'Changing Bluetooth settings will interrupt any current Bluetooth connection. Would you like to continue?'
+		angular.forEach confirmMsg, (value, key) ->
+			if confirm is ''
+				confirm = msg[value] || ''
+			if value is 'voip' or value is 'sip'
+				updateData["voip.voip-commit"] = ""
+			if value is 'net'
+				updateData["net.net-commit"] = ""
+			if value is 'reboot'
+				updateData["sys.restart"] = ""
+		if confirm isnt ''
+			$window.scroll(0,0)
+			confDiag = $mdDialog.show {
+				locals:
+					goUpdate: goUpdate
+					updateData: updateData
+					confirm: confirm
+					formCtrl: d
+				clickOutsideToClose: false,
+				escapeToClose: false,
+				disableParentScroll: false,
+				template: '<md-dialog aria-label="resetDialog"><md-content>
+				<h2>Warning!</h2>
+				<p class="warnMsg">{{confirmMsg}}</p>
+				</md-content>
+				<div class="md-actions">
+					<md-button class="md-raised" ng-click="close()">No</md-button>
+					<md-button class="md-raised md-primary" ng-click="confirm()">Yes</md-button>
+				</div>
+				</md-dialog>'
+				controller: 'ResetController'
+				onComplete: () ->
+					angular.element(document).find('body').css('overflow', 'hidden') # Bug 8044
+			}
+			confDiag.then () ->
+				angular.element(document).find('body').css('overflow', 'initial') # Bug 8044
+		else
+			goUpdate(updateData)
+	checkNewValue = (newVals, override, callbacks) ->
+		jsonArr = {}
+		cb = []
+		angular.forEach newVals, (value, key) ->
+			settingVal = if $scope.currentSettings[value] is undefined then '' else $scope.currentSettings[value]
+			if override or deviceConfig[value] isnt settingVal
+				# if value.length > 1
+				# 	x = value.match(/^[a-z]+(?=\.)/)
+				# 	if x
+				# 		cb.push x[0]
+				if callbacks
+					cb.push callbacks[value]
+				jsonArr[value] = settingVal
+		cb
+		[jsonArr, cb]
+	goUpdate = (updateData, formCtrl) ->
+		Device.request('updateProperties', updateData).then (success) ->
+			if formCtrl isnt undefined
+				formCtrl.$setPristine()
+			$scope.newSettings = []
+			go = $state.transitionTo $state.current, $stateParams,
+				reload: true
+				inherit: true
+				notify: true
+			go.then () ->
+				$scope.buildToast('Settings have been updated!')
+		, () ->
+			$scope.buildToast('Uh oh! Couldn\'t update settings. Is the device available?')
+.controller 'ResetController', ($scope, $mdDialog, updateData, goUpdate, confirm, formCtrl) ->
+	$scope.close = () ->
+		$mdDialog.hide()
+	$scope.confirm = () ->
+		goUpdate(updateData, formCtrl)
+		$mdDialog.hide()
+	$scope.confirmMsg = confirm

@@ -1,0 +1,187 @@
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(function($stateProvider) {
+    return $stateProvider.state('main.settings.settingsForm', {
+      url: ':sectionId',
+      templateUrl: 'app/settings/settingsForm/settingsForm.html',
+      controller: 'SettingsformCtrl'
+    });
+  });
+
+  'use strict';
+
+  angular.module('r1kApp').controller('SettingsformCtrl', function($scope, $stateParams, $state, $window, $interval, Device) {
+    var callbacks, override, startVals, statUpdate, statUpdate2;
+    $scope.currentSection = $stateParams.sectionId;
+    $scope.vfields = [0];
+    $scope.dst = dstValues;
+    $scope.dstHours = dstHours;
+    $scope.showSubmitButton = $scope.currentSection !== 'camera';
+    $scope.disableSubmit = true;
+    $scope.statusProps = [];
+    override = $scope.currentSection === 'network';
+    callbacks = [];
+    startVals = {};
+    $scope.cs = [
+      {
+        name: ''
+      }
+    ];
+    if (angular.isUndefined($scope.currentSection)) {
+      $state.go('main.home', {}, {
+        reload: true,
+        inherit: false,
+        notify: true
+      });
+    }
+    angular.forEach($scope.formData, function(v, i) {
+      if (v.section === $scope.currentSection) {
+        if (v.field === void 0) {
+          $scope.formData[i].field = 0;
+        } else if ($scope.vfields.indexOf(v.field) < 0) {
+          if (v.show !== void 0) {
+            if ($scope.currentSettings[v.show]) {
+              $scope.vfields.push(v.field);
+            }
+          } else {
+            $scope.vfields.push(v.field);
+          }
+        }
+        if (v.type === 'multiNumber' && v.dataType === 'int') {
+          angular.forEach(v.values, function(value, key) {
+            return $scope.statusProps.push(value.name);
+          });
+        }
+        if (v.type === 'sortable') {
+          angular.forEach(v.values, function(value, key) {
+            var sVal;
+            sVal = v.name + key;
+            if ($scope.currentSettings[sVal] !== void 0) {
+              startVals[sVal] = $scope.resetCurrentVal(sVal);
+              return callbacks[sVal] = v.cb;
+            }
+          });
+        } else {
+          startVals[v.name] = $scope.resetCurrentVal(v.name);
+          $scope.currentSettings[v.name] = v.hash ? '' : $scope.currentSettings[v.name] || startVals[v.name];
+        }
+        if (v.cb) {
+          return callbacks[v.name] = v.cb;
+        }
+      }
+    });
+    if ($scope.statusProps.length > 0) {
+      statUpdate = $interval(function() {
+        Device.request('requestStatus').then(function(stats) {
+          return angular.forEach(stats, function(value, key) {
+            return $scope.currentSettings[key] = value || '';
+          });
+        });
+        return Device.request('requestProperties').then(function(stats) {
+          if ($scope.currentSection === 'camera') {
+            return angular.forEach(stats, function(value, key) {
+              return $scope.currentSettings[key] = value || '';
+            });
+          }
+        });
+      }, 2000);
+    }
+    statUpdate2 = $interval(function() {
+      Device.request('requestStatus').then(function(stats) {
+        return angular.forEach(stats, function(value, key) {});
+      });
+      return Device.request('requestProperties').then(function(stats) {
+        return angular.forEach(stats, function(value, key) {
+          if (key === 'ble.ble-advertise') {
+            if (value === '1') {
+              $scope.cs.name = true;
+            }
+            if (value === '0') {
+              return $scope.cs.name = false;
+            }
+          }
+        });
+      });
+    }, 2000);
+    $scope.$watchCollection('currentSettings', function(n) {
+      $scope.newSettings = [];
+      return angular.forEach(startVals, function(value, key) {
+        if (!($scope.currentSettings[key] === value)) {
+          $scope.configForm.$setDirty();
+          return $scope.newSettings.push(key);
+        }
+      });
+    });
+    $scope.submitProps = function() {
+      if ($scope.configForm.$valid) {
+        if (override) {
+          $scope.newSettings = Object.keys(startVals);
+        }
+        return $scope.updateSettings($scope.newSettings, override, callbacks, $scope.configForm);
+      }
+    };
+    $scope.sortableErr = {
+      na: false
+    };
+    $scope.dndSort = {
+      containment: '.sortable',
+      containerPositioning: 'relative',
+      accept: function(src) {
+        var item;
+        item = src.itemScope;
+        if (item.$last && item.$first && angular.element(item.sortableScope.element).hasClass('required')) {
+          $scope.sortableErr.na = true;
+          return false;
+        } else {
+          return true;
+        }
+      },
+      dragEnd: function(src) {
+        var count, sortName;
+        sortName = src.source.itemScope.modelValue.setting;
+        count = 0;
+        angular.forEach($scope.currentSettings[sortName], function(value, n) {
+          return angular.forEach(value.props, function(val, num) {
+            var prop;
+            prop = sortName + ++count;
+            if ($scope.currentSettings[prop] !== void 0) {
+              return $scope.currentSettings[prop] = n === 1 ? 0 : val.value;
+            }
+          });
+        });
+        if (!$scope.sortableErr.na && $scope.configForm.$pristine) {
+          $scope.configForm.$setDirty();
+        }
+        return $scope.sortableErr.na = false;
+      }
+    };
+    return $scope.uploadDialog = function($event, tool, name) {
+      var go, startState;
+      $event.preventDefault();
+      $window.scroll(0, 0);
+      startState = $state.current.name;
+      go = $state.go('dialog.tool', {
+        toolID: tool
+      }, {
+        location: false,
+        inherit: false
+      });
+      return go.then(function() {
+        var check;
+        if ($scope.currentSettings[name].length < 1) {
+          return check = $interval(function() {
+            if ($state.current.name === startState) {
+              $interval.cancel(check);
+              return Device.request('requestProperties').then(function(res) {
+                return $scope.currentSettings[name] = res[name];
+              });
+            }
+          }, 5000);
+        }
+      });
+    };
+  });
+
+}).call(this);
+
+//# sourceMappingURL=settingsForm.js.map

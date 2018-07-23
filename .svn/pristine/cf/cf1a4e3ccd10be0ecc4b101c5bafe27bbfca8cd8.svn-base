@@ -1,0 +1,13 @@
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(function($stateProvider) {
+    return $stateProvider.state('dialog.tool', {
+      url: '/:toolID',
+      templateUrl: 'app/tools/tools.html',
+      controller: 'ToolsCtrl'
+    });
+  });
+
+}).call(this);
+
+//# sourceMappingURL=dialog.js.map

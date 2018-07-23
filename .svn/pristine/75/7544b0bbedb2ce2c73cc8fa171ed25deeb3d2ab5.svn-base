@@ -1,0 +1,35 @@
+<div class="loginContainer columns small-10 medium-6 large-4 xlarge-3 xxlarge-2 small-centered">
+	<div class="revoLogo">
+		<img src="../assets/images/yamaha.png" alt="Revolabs">
+	</div>
+	<form name="loginForm" class="loginWrap row" novalidate ng-submit="login()">
+		<div class="loginForm">
+			<h3 class="productTitle text-center">CS-700 {{productTitle}}</h3>
+			<h5 class="loginTitle">Login:</h5>
+			<div ng-messages="auth.error">
+				<small class="error" ng-message="required">You must enter a password.</small>
+				<small class="error" ng-message="noAuth">The password you entered is incorrect. Please try again.</small>
+				<small class="error" ng-message="noDevice">Unable to communicate with the device. Please ensure that it is connected to the network and powered on.</small>
+				<small class="error" ng-message="timedOut">Your session timed out. Please log in again.</small>
+			</div>
+			<!--chrmome fix for when it tires to save the wrong password for a login-->
+			<input type="text" id="browser-friendly-login-field-location" autocomplete="username" style="display:none"/>
+			<md-input-container>
+				<label>Password</label>
+				<input type="password" aria-label="Password" value="" ng-model="token" ng-change="maskPass(token)" name="password" ng-paste="$event.preventDefault()" required autofocus>
+			</md-input-container>
+			<div class="formWrap row">
+				<div class="columns small-12 medium-8 large-8">
+					<md-checkbox aria-label="Stay logged in" ng-model="auth.saveSession" name="Save session" ng-checked="{{auth.saveSession}}" ng-true-value="1" ng-false-value="0">
+						<label for="Save session">
+							Stay logged in
+						</label>
+					</md-checkbox>
+				</div>
+				<div class="columns small-12 medium-4 large-4">
+					<md-button class="md-raised md-primary" aria-label="Login">Login</md-button>
+				</div>
+			</div>
+		</div>
+	</form>
+</div>

@@ -1,0 +1,61 @@
+<div class="childState tool columns small-12">
+	<div class="toolForm" ng-repeat="form in forms">
+		<h4 ng-if="forms.length > 1 && form.submitLabel && form.title != false">{{form.submitLabel}}</h4>
+		<md-divider ng-if="$last && !form.submitLabel" class="mdDivider"></md-divider>
+		<div class="formItem row" ng-repeat="(key, input) in form.input" ng-switch on="input.type">
+			<div ng-switch-when="form" class="columns small-12">
+				<form method="POST" action="{{submitForm(input.reqType)}}" name="export">
+					<div class="columns small-12 medium-8 large-9">
+						<label>{{input.info}}</label>
+					</div>
+					<div class="columns small-12 medium-4 large-3">
+						<md-button class="md-raised md-primary" aria-label="Submit">{{form.submitLabel}}</md-button>
+					</div>
+				</form>
+			</div>
+			<div ng-switch-when="file" class="columns small-12">
+				<div class="columns small-12">
+					<div class="uploadArea" ng-class="fileInfo.state" ng-file-drop ng-file-select ng-model="bundle" ng-file-change="dropFile($files, input.accept)" allow-dir="false" allow-multiple="false">
+						<div>
+							<span class="inputDesc">Drag and drop or click here to select a file</span>
+							<span class="fileName" ng-if="fileInfo.state != ''">{{fileInfo.bundle.name}}</span>
+							<span class="uploadError" ng-if="fileInfo.errMsg != ''">{{fileInfo.errMsg}}</span>
+							<span class="info" ng-if="input.info != '' && fileInfo.errMsg != ''">{{input.info}}</span>
+						</div>
+					</div>
+				</div>
+				<div class="columns small-12 medium-4 large-3" ng-if="!dialog">
+					<md-button class="md-raised md-primary submitFile" aria-label="Submit" value="{{form.submitLabel}}" ng-disabled="fileInfo.noSubmit" ng-click="updateFirmware(input.reqType)">{{form.submitLabel}}</md-button>
+				</div>
+				<div class="columns small-12" ng-if="dialog">
+					<md-button class="md-raised submitFile" aria-label="Cancel" value="Cancel" ng-click="closeDialog()">Cancel</md-button>
+					<md-button class="md-raised md-primary submitFile" aria-label="Submit" value="{{form.submitLabel}}" ng-disabled="fileInfo.noSubmit" ng-click="updateFirmware(input.reqType)">{{form.submitLabel}}</md-button>
+				</div>
+			</div>
+			<div ng-switch-when="checkbox" class="columns small-12">
+				<div class="columns small-12 medium-8 large-9">
+					<md-checkbox ng-model="currentSettings[key]" ng-class="form.title == false?'no-title':''" name="{{key}}" aria-label="{{input.label}}" ng-checked="{{currentSettings[key]}}" ng-true-value="1" ng-false-value="0">
+						<label for="{{key}}">
+							{{input.label}}
+						</label>
+					</md-checkbox>
+				</div>
+				<div class="columns small-12 medium-4 large-3">
+					<md-button class="md-raised md-primary" aria-label="Submit" ng-click="updateSettings(newSettings)">{{form.submitLabel}}</md-button>
+				</div>
+			</div>
+			<div ng-switch-when="array" class="array columns small-12">
+				<ng-form class="columns small-12 medium-8 large-9">
+					<md-checkbox ng-repeat="(val, label) in input.values" ng-change="resetDefaults(key)" ng-model="resets[val]" name="{{val}}" aria-label="{{label}}" ng-true-value="1" ng-false-value="0">
+						<label for="{{val}}">
+							{{label}}
+						</label>
+					</md-checkbox>
+				</ng-form>
+				<div class="columns small-12 medium-4 large-3">
+					<md-button class="md-raised md-primary" aria-label="Submit" value="{{form.submitLabel}}" ng-disabled="!currentSettings[key].length" ng-click="updateSettings(newSettings, true, cb)">{{form.submitLabel}}</md-button>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

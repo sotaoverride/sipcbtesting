@@ -1,0 +1,144 @@
+.tool {
+	.toolForm {
+		md-divider {
+			  width: 100%;
+			  float: left;
+			  margin: 1rem 0 2rem;
+		}
+		.formItem {
+			.uploadArea {
+				border: 1px solid;
+				color: #497F86;
+				div {
+					width: 100%;
+					text-align: center;
+					margin: 6rem auto;
+					span {
+						display: block;
+						clear: both;
+					}
+					.inputDesc, .info {
+						color: #000 !important;
+						font-family: 'roboto_condensedlight';
+					}
+					.fileName {
+						font-size: 1.4rem;
+						font-weight: bold;
+						display: inline-block;
+						padding: 1rem 2rem;
+						box-shadow: 0 0 6px rgba(0,0,0,0.4);
+						margin: 1rem 0;
+					}
+					.uploadError {
+						font-size: 1.1rem;
+					}
+					.info {
+						margin: 1rem 0 -1rem;
+						font-size: 0.9rem;
+					}
+				}
+			}
+			.valid, .valid div>span {
+				color: #0CB000;
+			}
+			.error {
+				&>div {
+					margin-bottom: 3rem;
+				}
+				&, div>span {
+					color: #e21616;
+				}
+			}
+			.md-button.submitFile {
+				margin-top: 1rem;
+			}
+			.dragover {
+				background-color: #8fe589;
+				border-color: #0CB000;
+			}
+			label {
+				vertical-align: sub;
+			}
+			md-checkbox {
+				margin: 0 0 0 1rem;
+			}
+			md-checkbox.no-title {
+				margin: 0;
+			}
+			.array {
+				ng-form {
+					padding-left: 1rem;
+					display: block;
+				}
+				md-checkbox {
+					margin: 0.4rem 0 0.2rem 0;
+					float: left;
+				}
+			}
+		}
+	}
+}
+.dashContent .tool {
+	.formItem:only-child {
+		margin: 2rem 0 0rem;
+	}
+	.formItem {
+		margin: 1.4rem 0;
+		.md-button {
+			width: 100%;
+			margin-top: 0.4rem;
+		}
+	}
+}
+md-dialog.toolDialog {
+	h6 {
+		text-align: center;
+	}
+	.dialogContent {
+		margin-bottom: 3rem;
+	}
+    .progressValue {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        // top: 6.1rem;
+        font-size: 2rem;
+        left: 0;
+        letter-spacing: -1px;
+    }
+    .versionMessage {
+    	font-size: 0.875rem;
+	    margin: 1.4rem 0 0;
+    }
+    .outerProgress {
+    	backface-visibility: hidden;
+		// margin: 0 auto;
+		margin: 3rem auto 0;
+		// -webkit-transform: none !important;
+		// height: 51px;
+    }
+	button {
+		order: 2;
+		width: 30%;
+		margin: 0 auto 1em;
+		display: block;
+		position: relative;
+	}
+	ui-view {
+		.tool {
+			padding-top: 0.9375rem;
+			.toolForm {
+				.formItem {
+					div {
+						padding: 0
+					}
+					button {
+						float: right;
+						width: auto;
+						margin-left: 0.8rem;
+					}
+				}
+			}
+		}
+	}
+}

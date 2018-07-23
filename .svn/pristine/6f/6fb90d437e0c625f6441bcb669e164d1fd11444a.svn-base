@@ -1,0 +1,8 @@
+'use strict'
+
+angular.module 'r1kApp'
+.config ($stateProvider) ->
+  $stateProvider.state 'main.diag',
+    url: 'diag'
+    templateUrl: 'app/diag/diag.html'
+    controller: 'DiagCtrl'

@@ -1,0 +1,34 @@
+<div class="menu-stripe"></div>
+<div class="mainDashboard columns small-centered small-12 large-10 xlarge-8">
+  <div class="topNav row">
+    <div class="topBar columns small-centered small-12 large-10 xlarge-8">
+      <div class="revoLogo columns small-4 medium-3 large-2">
+        <a href ui-sref="main.home"><img class="small-hide" src="../assets/images/yamaha.png" alt="Yamaha"><img class="small-show iconLogo" src="../assets/images/yamaha_icon.png" alt="Yamaha"></a>
+      </div>
+      <div class="productHeader columns small-4 medium-6 large-8">
+        <h3 class="productTitle">{{productTitle}} <span class="small-hide">Device Manager</span></h3>
+      </div>
+      <section class="logout columns small-4 medium-3 large-2">
+        <a href ng-click="logout()"><span class="small-hide">Logout</span> <span class="icon">&#xe692;</span></a>
+      </section>
+    </div>
+    <div class="primaryNav columns small-12" show-menu>
+      <nav class="mainNav columns small-10 medium-6 xlarge-4 small-centered">
+        <a class="columns small-4" show-sub-menu ui-sref="main.home" ui-sref-active="activeView" ng-class="isDiag"><span class="icon">&#xe68b;</span><span class="sectionTitle">Home</span></a>
+        <a class="columns small-4" show-sub-menu ui-sref="main.settings.settingsForm" ui-sref-active="activeView"><span class="icon">&#xe68a;</span><span class="sectionTitle">Settings</span></a>
+        <a class="columns small-4" show-sub-menu ui-sref="main.tools" ui-sref-active="activeView"><span class="icon">&#xe610;</span><span class="sectionTitle">Tools</span></a>
+      </nav>
+      <nav class="mainSubNav columns small-12 small-centered">
+        <ul sub-menu="main.settings.settingsForm" class="small-block-grid-{{settingsMenu}}"><li ng-repeat="section in settingsSections | orderBy:'+'"><a ui-sref="main.settings.settingsForm({sectionId: section})" sub-menu-param ui-sref-active="activeView"><h6>{{section==='sip'?'SIP':section}}</h6></a></li></ul>
+      </nav>
+      <nav class="mainSubNav columns small-12 large-10 xlarge-8 small-centered">
+        <ul sub-menu="main.tools" class="small-block-grid-{{toolsMenu}}"><li ng-repeat="(key, tool) in tools" ng-if="tool.menu"><a ui-sref="main.tools({toolID: key})" sub-menu-param ui-sref-active="activeView"><h6>{{tool.menu}}</h6></a></li></ul>
+      </nav>
+    </div>
+  </div>
+  <div ui-view class="dashContent columns small-12">
+  </div>
+  <div class="footer columns small-12">
+    <p>CS-700 Device Manager &copy; Yamaha 2018. All rights reserved.</p>
+  </div>
+</div>

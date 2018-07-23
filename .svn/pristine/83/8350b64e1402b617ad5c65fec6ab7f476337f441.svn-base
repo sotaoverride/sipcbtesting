@@ -1,0 +1,318 @@
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(function($stateProvider) {
+    return $stateProvider.state('main', {
+      url: '/',
+      abstract: true,
+      sticky: true,
+      deepStateRedirect: true,
+      views: {
+        "root": {
+          templateUrl: 'app/main/main.html',
+          controller: 'MainCtrl'
+        }
+      },
+      resolve: {
+        loadSettings: function(Device) {
+          return Device.request('requestProperties').then(function(res) {
+            return Device.request('requestStatus').then(function(statsRes) {
+              var currCfg, ro;
+              currCfg = angular.extend({}, res, statsRes);
+              ro = Object.keys(currCfg);
+              return function() {
+                var cfg, configVals, settingsSections;
+                cfg = {};
+                settingsSections = [];
+                angular.forEach(formData, function(v, i) {
+                  var cfgVal, ct, currLabel, currSetting, index, newOption, newVal, num, options, origVal, sortArray, sv;
+                  cfgVal = currCfg[v.name] === void 0 ? '' : currCfg[v.name];
+                  index = ro.indexOf(v.name);
+                  if (index !== -1) {
+                    ro.splice(index, 1);
+                  }
+                  if (v.section && settingsSections.indexOf(v.section) < 0) {
+                    settingsSections.push(v.section);
+                  }
+                  if (v.type === 'number' || v.type === 'range' || v.type === 'checkbox' || v.type === 'select' || v.type === 'addCheckbox' || v.type === 'tmp') {
+                    cfgVal = cfgVal.length > 0 && cfgVal == Number(cfgVal) ? Number(cfgVal) : cfgVal;
+                    if (v.type === 'checkbox' && cfgVal.length > 3) {
+                      cfgVal = cfgVal === "true" ? 1 : 0;
+                    }
+                  } else if (v.type === 'sortable') {
+                    cfgVal = [];
+                    sortArray = [];
+                    angular.forEach(v.lists, function(el, num) {
+                      return sortArray.push([]);
+                    });
+                    options = [];
+                    num = 1;
+                    ct = Object.keys(v.values).length;
+                    while (options.length < ct) {
+                      if (v.values[num] !== void 0) {
+                        origVal = currCfg[v.name + num];
+                        currSetting = ~~origVal;
+                        currLabel = '';
+                        newVal = 0;
+                        if (origVal === void 0 || origVal === "0") {
+                          angular.forEach(v.values, function(v2, n2) {
+                            if (options.indexOf(~~n2) === -1) {
+                              if (currSetting === 0) {
+                                currLabel = v2;
+                                return currSetting = ~~n2;
+                              }
+                            }
+                          });
+                        } else {
+                          newVal = currSetting;
+                          currLabel = v.values[currSetting];
+                        }
+                        if (origVal >= 0) {
+                          cfg[v.name + num] = newVal;
+                          ro.splice(ro.indexOf(v.name + num), 1);
+                        }
+                        options.push(currSetting);
+                        newOption = {
+                          value: currSetting,
+                          label: currLabel,
+                          setting: v.name
+                        };
+                        sv = newVal !== 0 ? 0 : 1;
+                        sortArray[sv].push(newOption);
+                      }
+                      num++;
+                    }
+                    angular.forEach(v.lists, function(el, num) {
+                      return cfgVal[num] = {
+                        name: el.name,
+                        props: sortArray[num],
+                        req: el.req
+                      };
+                    });
+                  }
+                  return cfg[v.name] = cfgVal;
+                });
+                angular.forEach(ro, function(rov, rok) {
+                  return cfg[rov] = currCfg[rov];
+                });
+                return configVals = {
+                  settingsSections: settingsSections,
+                  currentSettings: cfg
+                };
+              };
+            });
+          });
+        }
+      }
+    });
+  }).run(function($rootScope, $state, Auth, $mdDialog, $idle, $window, Device) {
+    $rootScope.$on('$stateChangeStart', function(event, toState, toParams, fromState, fromParams) {
+      var isUser;
+      if (toParams.toolID === '' || toParams.sectionId === '') {
+        event.preventDefault();
+      }
+      isUser = Auth.user();
+      if (isUser && (toState.name === 'login' || toState.name === 'dialog')) {
+        event.preventDefault();
+        if (!fromState.name.length) {
+          return $state.go('main.home');
+        }
+      } else if (!isUser && toState.name !== 'login') {
+        event.preventDefault();
+        return $state.go('login');
+      }
+    });
+    $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
+      if (toState.url !== fromState.url && fromState.name.length > 1 && toState.name.search(/main/) === 0 && fromState.name.search(/dialog/) === -1) {
+        return $state.reload();
+      }
+    });
+    $rootScope.$on('$stateNotFound', function() {
+      return $state.go('main.home');
+    });
+    $rootScope.$on('$keepalive', function() {
+      if ($state.current.name !== 'main.home') {
+        return Auth.updateSession();
+      }
+    });
+    $rootScope.$on('$idleStart', function() {
+      $window.scroll(0, 0);
+      return $mdDialog.show({
+        clickOutsideToClose: false,
+        escapeToClose: false,
+        template: '<md-dialog aria-label="timeoutDialog"><md-content class="timeoutDialog"> <h2>Warning!</h2> <p>Your session will timeout soon unless user activity is detected.</p> <div class="progressCounter"><span>:</span>{{durTime}}</div> <md-progress-circular class="md-warn" mode="determinate" value="{{dur}}" md-diameter="100"></md-progress-circular> </md-content></md-dialog>',
+        controller: 'timeoutController'
+      });
+    });
+    $rootScope.$on('$idleTimeout', function() {
+      $rootScope.timedOut = true;
+      return $mdDialog.hide();
+    });
+    return $rootScope.$on('$idleEnd', function() {
+      Auth.updateSession();
+      return $mdDialog.hide();
+    });
+  }).controller('timeoutController', function($scope) {
+    $scope.dur = 100;
+    $scope.durTime = "30";
+    return $scope.$on('$idleWarn', function(e, countdown) {
+      $scope.dur = ((countdown / 30) * 100).toFixed();
+      return $scope.durTime = countdown < 10 ? '0' + countdown : countdown;
+    });
+  });
+
+  'use strict';
+
+  angular.module('r1kApp').controller('MainCtrl', function($scope, loadSettings, Device, $state, $stateParams, Auth, $mdDialog, $mdToast, $window) {
+    var checkNewValue, deviceConfig, goUpdate, vals;
+    Auth.watch();
+    $scope.logout = function() {
+      return Auth.logout();
+    };
+    vals = loadSettings();
+    deviceConfig = vals.currentSettings;
+    $scope.isLogin = 'appBackground';
+    $scope.settingsSections = vals.settingsSections;
+    $scope.productTitle = deviceConfig["sys.product"];
+    $scope.formData = formData;
+    $scope.currentSettings = angular.copy(deviceConfig);
+    $scope.tools = tools;
+    $scope.isDiag = $state.current.url === 'diag' ? 'activeView' : '';
+    $scope.isVoip = ~~$scope.currentSettings['sys.voip-capable'];
+    $scope.voipOnly = ['calls', 'sip', 'transport'];
+    $scope.toolsMenu = 0;
+    if (!$scope.isVoip) {
+      $scope.settingsSections = [];
+      angular.forEach(vals.settingsSections, function(v) {
+        if ($scope.voipOnly.indexOf(v) === -1) {
+          return $scope.settingsSections.push(v);
+        }
+      });
+    }
+    angular.forEach($scope.tools, function(v, k) {
+      if ((v.menu && v.show) && !$scope.currentSettings[v.show]) {
+        v.menu = void 0;
+      }
+      if (v.menu) {
+        return $scope.toolsMenu++;
+      }
+    });
+    $scope.settingsMenu = $scope.settingsSections.length;
+    $scope.deviceCmd = function(cmd, val) {
+      if (val !== void 0) {
+        $scope.currentSettings[cmd] = val;
+      }
+      return $scope.updateSettings([cmd], true);
+    };
+    $scope.resetCurrentVal = function(x) {
+      return deviceConfig[x];
+    };
+    $scope.buildToast = function(msg, warn) {
+      var toast;
+      toast = {
+        template: '<md-toast' + (warn ? ' class="md-warn"' : '') + '>' + msg + '</md-toast>',
+        position: 'right',
+        parent: '.childState'
+      };
+      return $mdToast.show(toast);
+    };
+    $scope.updateSettings = function(a, b, c, d) {
+      var arr, confDiag, confirm, confirmMsg, msg, updateData;
+      arr = checkNewValue(a, b, c);
+      updateData = arr[0];
+      confirmMsg = arr[1];
+      confirm = '';
+      msg = {
+        'reboot': 'Performing this action requires rebooting the device. Would you like to continue?',
+        'reset': 'Performing this action will reset all device settings back to factory default and requires rebooting the device. Would you like to continue?',
+        'recents': 'Would you like to clear the recent call list?',
+        'bt': 'Changing Bluetooth settings will interrupt any current Bluetooth connection. Would you like to continue?'
+      };
+      angular.forEach(confirmMsg, function(value, key) {
+        if (confirm === '') {
+          confirm = msg[value] || '';
+        }
+        if (value === 'voip' || value === 'sip') {
+          updateData["voip.voip-commit"] = "";
+        }
+        if (value === 'net') {
+          updateData["net.net-commit"] = "";
+        }
+        if (value === 'reboot') {
+          return updateData["sys.restart"] = "";
+        }
+      });
+      if (confirm !== '') {
+        $window.scroll(0, 0);
+        confDiag = $mdDialog.show({
+          locals: {
+            goUpdate: goUpdate,
+            updateData: updateData,
+            confirm: confirm,
+            formCtrl: d
+          },
+          clickOutsideToClose: false,
+          escapeToClose: false,
+          disableParentScroll: false,
+          template: '<md-dialog aria-label="resetDialog"><md-content> <h2>Warning!</h2> <p class="warnMsg">{{confirmMsg}}</p> </md-content> <div class="md-actions"> <md-button class="md-raised" ng-click="close()">No</md-button> <md-button class="md-raised md-primary" ng-click="confirm()">Yes</md-button> </div> </md-dialog>',
+          controller: 'ResetController',
+          onComplete: function() {
+            return angular.element(document).find('body').css('overflow', 'hidden');
+          }
+        });
+        return confDiag.then(function() {
+          return angular.element(document).find('body').css('overflow', 'initial');
+        });
+      } else {
+        return goUpdate(updateData);
+      }
+    };
+    checkNewValue = function(newVals, override, callbacks) {
+      var cb, jsonArr;
+      jsonArr = {};
+      cb = [];
+      angular.forEach(newVals, function(value, key) {
+        var settingVal;
+        settingVal = $scope.currentSettings[value] === void 0 ? '' : $scope.currentSettings[value];
+        if (override || deviceConfig[value] !== settingVal) {
+          if (callbacks) {
+            cb.push(callbacks[value]);
+          }
+          return jsonArr[value] = settingVal;
+        }
+      });
+      cb;
+      return [jsonArr, cb];
+    };
+    return goUpdate = function(updateData, formCtrl) {
+      return Device.request('updateProperties', updateData).then(function(success) {
+        var go;
+        if (formCtrl !== void 0) {
+          formCtrl.$setPristine();
+        }
+        $scope.newSettings = [];
+        go = $state.transitionTo($state.current, $stateParams, {
+          reload: true,
+          inherit: true,
+          notify: true
+        });
+        return go.then(function() {
+          return $scope.buildToast('Settings have been updated!');
+        });
+      }, function() {
+        return $scope.buildToast('Uh oh! Couldn\'t update settings. Is the device available?');
+      });
+    };
+  }).controller('ResetController', function($scope, $mdDialog, updateData, goUpdate, confirm, formCtrl) {
+    $scope.close = function() {
+      return $mdDialog.hide();
+    };
+    $scope.confirm = function() {
+      goUpdate(updateData, formCtrl);
+      return $mdDialog.hide();
+    };
+    return $scope.confirmMsg = confirm;
+  });
+
+}).call(this);
+
+//# sourceMappingURL=main.js.map

@@ -1,0 +1,113 @@
+.home {
+	h4 {
+		margin: 0.4rem 0 0 !important;
+		.btProgress {
+			md-progress-circular {
+				display: inline-block;
+    			vertical-align: middle;
+			    top: -2px;
+			}
+			#pct {
+			    margin: 0;
+			    font-weight: normal;
+			    text-shadow: none;
+			    position: absolute;
+			    right: 3.8rem;
+			    font-size: 1.2rem;
+			    top: 1.2rem;
+		        width: 1.4rem;
+		        text-align: center;
+			}
+		}
+	}
+	.sysData {
+		padding: 1.4rem 2rem 2rem;
+		border-bottom: 1px solid rgb(222, 222, 219);
+		margin-bottom: 1rem;
+		min-height: 14.2rem;
+		h5 {
+			text-transform: capitalize;
+		}
+	}
+	.end .sysData:not(.micStat) {
+		div:nth-last-child(-n+2) h5 {
+			text-transform: none;
+		}
+	}
+	.micStat {
+		.end h5 {
+			padding-left: 2rem;
+		}
+	}
+	.btnlist {
+		border: 1px solid rgb(96, 94, 79);
+		border-top: 0;
+		padding: 0 1rem 1.5rem;
+		margin: 1rem -1rem 0;
+		.pairListHeader {
+			clear: both;
+		    background: #605e4f;
+		    height: 1.8rem;
+		    margin: 0 -1rem;
+		    padding: 0 1rem;
+		    color: white;
+			&>h5, &>span {
+				// float: left;
+		    	color: white;
+				display: inline-block;
+				position: relative;
+    			top: -0.1rem;
+			}
+			&>h5 {
+				width: 40%;
+			    margin-right: 0.4rem;
+			}
+			&>span {
+			    width: 8rem;
+			    text-align: center;
+			}
+			&>.md-button {
+				float: right;
+				margin: -0.2rem 0 0 0.5rem;
+			}
+		}
+		ul {
+			list-style: none;
+			// float: left;
+    		clear: both;
+    		margin: 0;
+			li {
+				width: 100%;
+				display: block;
+				height: 2rem;
+				border-bottom: 1px solid #dfdfdc;
+				margin-top: 0.8rem;
+				&>span {
+					display: inline-block;
+				    line-height: 2.8;
+			        width: 8rem;
+    				vertical-align: middle;
+				}
+				&>span:first-child {
+					width: 40%;
+					text-overflow: ellipsis;
+					overflow: hidden;
+				    margin-right: 0.4rem;
+			        word-break: break-all;
+				    height: 100%;
+				    vertical-align: sub;
+				    white-space: nowrap;
+				}
+			}
+			.pairItem {
+				.md-button {
+					float: right;
+			    	margin: 0.25rem 0 0 0.5rem;
+				}
+			}
+			.noPhones {
+				line-height: 3;
+			}
+		}
+	}
+}

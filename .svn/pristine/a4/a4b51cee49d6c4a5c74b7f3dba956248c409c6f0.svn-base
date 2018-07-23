@@ -1,0 +1,74 @@
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(function($stateProvider) {
+    return $stateProvider.state('login', {
+      url: '/login',
+      views: {
+        "root": {
+          templateUrl: 'app/login/login.html',
+          controller: 'LoginCtrl'
+        }
+      }
+    });
+  });
+
+  'use strict';
+
+  angular.module('r1kApp').controller('LoginCtrl', function($scope, Auth, $state, $rootScope, Device, $timeout) {
+    var core, errorKeys;
+    errorKeys = {
+      noDevice: false,
+      noAuth: false,
+      required: false
+    };
+    core = {
+      vp: "sys.validate-password",
+      sid: "sessionId",
+      exp: "sessionDur"
+    };
+    $scope.auth = {
+      token: '',
+      saveSession: 0,
+      error: {
+        timedOut: $rootScope.timedOut
+      }
+    };
+    $timeout(function() {
+      if ($scope.token !== void 0) {
+        return $scope.maskPass($scope.token);
+      } else {
+        return $scope.token = '';
+      }
+    }, 300);
+    $scope.isLogin = 'loginBackground';
+    $scope.productTitle = 'Device Manager';
+    $scope.maskPass = function(t) {
+      return $scope.auth.token = Auth.hashPass(t);
+    };
+    return $scope.login = function() {
+      var pass;
+      $rootScope.timedOut = false;
+      $scope.auth.error = angular.copy(errorKeys);
+      if (!$scope.auth.token.length) {
+        return $scope.auth.error.required = true;
+      } else {
+        pass = {};
+        pass[core.vp] = $scope.auth.token;
+        return Device.request('requestProperties', pass).then(function(yay) {
+          if (~~yay[core.vp]) {
+            Auth.login(yay[core.exp], yay[core.sid], $scope.auth.saveSession);
+            return $state.go('main.home');
+          } else {
+            $scope.auth.error.noAuth = true;
+            return $scope.auth.token = '';
+          }
+        }, function(errMsg) {
+          return $scope.auth.error.noDevice = true;
+        });
+      }
+    };
+  });
+
+}).call(this);
+
+//# sourceMappingURL=login.js.map

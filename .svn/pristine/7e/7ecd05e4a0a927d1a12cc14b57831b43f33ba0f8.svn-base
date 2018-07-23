@@ -1,0 +1,19 @@
+<div class="childState diag columns small-12">
+	<div class="diagForm" ng-repeat="form in forms">
+		<h4>{{form.title}}</h4>
+		<div class="formItem row">
+			<div class="columns small-12">
+				<div class="columns small-12 medium-8 large-9" ng-switch on="form.type">
+					<label ng-switch-when="form" ng-bind-html="form.info"></label>
+					<md-input-container ng-switch-when="input" class="columns small-12">
+						<label>{{form.label}}</label>
+						<input type="text" ng-model="diag[form.cmd]" name="{{form.cmd}}" ng-required="1">
+					</md-input-container>
+				</div>
+				<div class="columns small-12 medium-4 large-3">
+					<md-button class="md-raised md-primary" aria-label="Submit" ng-click="submitForm(form.cmd)">Enter Command</md-button>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

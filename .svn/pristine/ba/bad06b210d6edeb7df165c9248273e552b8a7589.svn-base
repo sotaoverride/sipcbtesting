@@ -1,0 +1,94 @@
+<div class="childState home columns small-12">
+	<div ng-repeat="(k, v) in squares" ng-class="$even ? 'large-offset-1' : 'end'" class="homeSquares columns small-12 medium-6 large-5">
+		<h4 ng-if="(v.show == undefined || v.show != undefined && v.show == true)">{{k}} Status</h4>
+		<div class="sysData" ng-if="(v.show == undefined || v.show != undefined && v.show == true)">
+			<div ng-repeat="data in componentStatus | filter:{cat: k}" ng-switch on="data.type" ng-if="(data.show == undefined || data.show != undefined && data.show == true)">
+				<div ng-switch-when="btn">
+					<md-button class="md-raised md-primary" aria-label="{{data.label}}" ng-click="deviceCmd(data.prop)">{{data.label}}</md-button>
+				</div>
+				<div ng-switch-when="upgrade">
+					<h5><strong>{{data.label}}</strong>: {{currentSettings[data.val] == 'unknown' ? upStr(currentSettings[data.prop]) : upStr(currentSettings[data.val])}}</h5>
+				</div>
+				<div ng-switch-default>
+					<h5><strong>{{data.label}}</strong>: {{upStr(currentSettings[data.prop])}}</h5>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="homeSquares columns small-12 large-10 large-offset-1 end" ng-if="isBt ">
+		<h4 ng-switch on="btUpgrade">Bluetooth Status
+			<span ng-switch-when="false" className='compStatus'>{{upStr(btStatus)}}</span>
+			<span ng-switch-when="true" class="btProgress">Updating<md-progress-circular md-mode="determinate" md-diameter="36" ng-value="btPct"></md-progress-circular><span id="pct">{{btPct}}</span></span>
+		</h4>
+		<div class="sysData">
+			<div ng-repeat="data in btData" ng-switch on="data.type" ng-if="(data.show == undefined || data.show != undefined && data.show == true)">
+				<div ng-switch-when="btnlist" class="btnlist">
+					<div class="pairListHeader">
+						<h5>{{data.label}}</h5>
+						<span>MAC Address</span>
+						<md-button class="md-raised md-primary" aria-label="Unpair all Devices" ng-click="deviceCmd('bt.bt-unpair', 'all')" ng-if="btPaired">Unpair all Devices</md-button>
+						<md-button class="md-raised md-primary" aria-label="{{pairLabel}}" ng-click="pairButton(1)" ng-show="currentSettings['bt.bt-connected'] == 0">{{pairLabel}}</md-button>
+					</div>
+					<ul class="pairList" ng-switch on="btPaired">
+						<li class="pairItem" ng-repeat="phone in btPhones" ng-switch-when="true">
+							<span class="phoneName"><strong>{{phone[1]}}</strong></span>
+							<span class="phoneMac">{{phone[0]}}</span>
+							<md-button ng-repeat="button in data.btns" ng-if="(button.conn == undefined) || (button.conn == true && phone[2])" class="md-raised md-primary" aria-label="{{button.label}}" ng-click="deviceCmd(button.cmd, button.mac ? phone[0] : undefined)">{{button.label}}</md-button>
+						</li>
+						<li class="pairItem noPhones" ng-switch-when="false">
+							No phones have been paired. Click the 'Pair' button to pair a phone.
+						</li>
+					</ul>
+				</div>
+				<div ng-switch-default>
+					<h5><strong>{{data.label}}</strong>: {{currentSettings[data.prop] || 'None'}}</h5>
+				</div>
+			</div>
+			
+		</div>
+	</div>
+		<div class="homeSquares columns small-12 large-10 large-offset-1 end" ng-if="isBle ">
+		<h4 ng-switch on="btUpgrade">BLE Status
+			<span ng-switch-when="false" className='compStatus'>{{upStr(bleStatus)}}</span>
+			<span ng-switch-when="true" class="bleProgress">Updating<md-progress-circular md-mode="determinate" md-diameter="36" ng-value="btPct"></md-progress-circular><span id="pct">{{btPct}}</span></span>
+		</h4>
+		
+	</div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- <div class="childState home columns small-12">
+	<div class="columns small-12 medium-6 large-5 large-offset-1">
+		<h4>System Information</h4>
+		<div class="sysData">
+			<div ng-repeat="(k,v) in deviceData"><h5><strong>{{v}}</strong>: {{currentSettings[k]}}</h5></div>
+			<md-button class="md-raised md-primary" aria-label="Restart" ng-click="restart()">Restart Device</md-button>
+		</div>
+	</div>
+	<div class="columns small-12 medium-6 large-5 end">
+		<h4>Call Status</h4>
+		<div class="sysData">
+			<div ng-repeat="(k,v) in callData"><h5><strong>{{v.label}}</strong>: {{currentSettings[v.prop]||'Disabled'}}</h5></div>
+		</div>
+	</div>
+</div> -->

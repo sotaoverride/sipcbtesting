@@ -1,0 +1,58 @@
+.loginContainer {
+	& {
+		margin: 9em 0 2em;
+	}
+	.revoLogo {
+		// padding-left: 10px;
+		img {
+			display: block;
+			margin: 0 auto 4rem;
+			max-width: 80%;
+			user-select: none;
+		}
+	}
+	.loginWrap {
+        box-shadow: -1px 3px 16px rgba(0, 0, 0, 0.2);
+		background-color: #fff;
+		& * {
+			user-select: none;
+		}
+		.loginTitle {
+			text-transform: uppercase;
+			margin-bottom: -0.6em;
+		}
+		.loginForm {
+			margin: 1.2em 2em 1.8em;
+			.productTitle {
+				span {
+					font-size: 1rem;
+					position: relative;
+					top: -0.95rem;
+				}
+			}
+			small.error {
+				margin: 0.8em 0 -1.2em 0;
+			}
+			md-input-container {
+				padding: 1rem 0 0;
+				&>input.md-input {
+					padding-bottom: 0.5rem;
+					border-bottom-width: 2px;
+					user-select: initial;
+				}
+			}
+			.formWrap {
+				margin-top: -0.4em;
+				md-checkbox {
+					margin: 0.4rem;
+					label{
+						margin-top: -1px;
+					}
+				}
+				.md-button {
+					width: 100%;
+				}
+			}
+		}
+	}
+}

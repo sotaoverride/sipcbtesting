@@ -1,0 +1,173 @@
+(function() {
+  'use strict';
+  angular.module('r1kApp').config(function($stateProvider) {
+    return $stateProvider.state('main.home', {
+      url: '',
+      templateUrl: 'app/home/home.html',
+      controller: 'HomeCtrl'
+    });
+  });
+
+  'use strict';
+
+  angular.module('r1kApp').controller('HomeCtrl', function($scope, $interval, Device) {
+    var fmtBle, fmtBt, intUpdate;
+    $scope.squares = {
+      'system': {
+        title: ''
+      },
+      'media': {
+        title: ''
+      }
+    };
+    $scope.componentStatus = [
+      {
+        prop: "call.status.usb",
+        label: "USB Call Status",
+        cat: 'media'
+      }, {
+        prop: "audio.usb-audio-stream",
+        label: "USB Audio Stream",
+        cat: 'media',
+        type: 'bin'
+      }, {
+        prop: "cam.camera-status",
+        label: "Camera",
+        cat: 'media',
+        type: 'upgrade',
+        val: 'sys.camera-upgrade-status'
+      }, {
+        prop: "cam.camera-stream",
+        label: "Stream",
+        cat: 'media',
+        type: 'bin'
+      }, {
+        prop: "cam.camera-door",
+        label: "Privacy Door",
+        cat: 'media',
+        type: 'bin'
+      }, {
+        prop: "net.ip",
+        label: "IP Address",
+        cat: 'system'
+      }, {
+        prop: "sys.base-ver",
+        label: "Software Version",
+        cat: 'system'
+      }, {
+        prop: "sys.base-sernum",
+        label: "Serial Number",
+        cat: 'system'
+      }, {
+        prop: "net.mac",
+        label: "MAC Address",
+        cat: 'system'
+      }, {
+        prop: "sys.restart",
+        label: "Restart Device",
+        cat: 'system',
+        type: 'btn'
+      }
+    ];
+    $scope.btData = [
+      {
+        prop: "bt.bt-name",
+        label: "Bluetooth Name"
+      }, {
+        prop: "bt.bt-mac",
+        label: "Bluetooth MAC Address"
+      }, {
+        prop: "call.status.bt",
+        label: "Call Status",
+        show: 'bt.bt-connected'
+      }, {
+        prop: "bt.bt-paired-list",
+        label: "Paired Devices",
+        type: 'btnlist',
+        btns: [
+          {
+            cmd: 'bt.bt-disconnect',
+            label: 'Disconnect',
+            conn: true
+          }
+        ],
+        props: ['Name', 'MAC Address'],
+        headProp: "bt.bt-pair",
+        headShowProp: 'bt.bt-status',
+        headBtns: [
+          {
+            name: 'Pair',
+            val: 1,
+            hideVal: 'off'
+          }, {
+            name: 'Cancel Pairing',
+            val: 0,
+            showVal: 'pairing'
+          }, {
+            name: "Unpair All Devices",
+            prop: "bt.bt-unpair",
+            val: 'all'
+          }
+        ]
+      }
+    ];
+    $scope.bleData = [{}];
+    $scope.pairButton = function(click) {
+      $scope.pairLabel = $scope.isPairing ? 'Cancel Pairing' : 'Pair';
+      if (click) {
+        return $scope.deviceCmd('bt.bt-pair', ~~!$scope.isPairing);
+      }
+    };
+    fmtBt = function() {
+      var conList, list;
+      $scope.btStatus = $scope.currentSettings['bt.bt-status'].toLowerCase();
+      $scope.btPct = ~~$scope.currentSettings['sys.bt-upgrade-status'];
+      $scope.btUpgrade = $scope.btPct > 0;
+      $scope.isBt = $scope.btStatus !== 'off';
+      $scope.btPaired = $scope.currentSettings['bt.bt-paired-list'].length > 0;
+      $scope.btConnected = $scope.currentSettings['bt.bt-connected'] !== 0;
+      $scope.isPairing = ~~($scope.btStatus === 'pairing');
+      $scope.pairButton();
+      if ($scope.isBt && $scope.btPaired && $scope.btConnected) {
+        conList = $scope.currentSettings['bt.bt-connected'].split(' ');
+        list = $scope.currentSettings['bt.bt-paired-list'].split(',');
+        $scope.btPhones = [];
+        return angular.forEach(list, function(value, key) {
+          var ph, y;
+          if (value.length) {
+            y = value.indexOf(' ');
+            ph = [value.substr(0, y).trim(), value.substr(y).trim()];
+            ph.push(conList[0] === ph[0]);
+            return $scope.btPhones.push(ph);
+          }
+        });
+      }
+    };
+    fmtBle = function() {
+      $scope.bleStatus = $scope.currentSettings['ble.ble-status'].toLowerCase();
+      return $scope.isBle = $scope.bleStatus !== 'off';
+    };
+    fmtBt();
+    fmtBle();
+    intUpdate = $interval(function() {
+      return Device.request('requestStatus').then(function(stats) {
+        angular.forEach(stats, function(value, key) {
+          return $scope.currentSettings[key] = value || '';
+        });
+        fmtBt();
+        return fmtBle();
+      });
+    }, 2000);
+    $scope.upStr = function(str) {
+      var cap;
+      cap = str.slice(0, 1).toUpperCase();
+      return cap + str.slice(1);
+    };
+    return $scope.$on('$destroy', function() {
+      return $interval.cancel(intUpdate);
+    });
+  });
+
+}).call(this);
+
+//# sourceMappingURL=home.js.map
